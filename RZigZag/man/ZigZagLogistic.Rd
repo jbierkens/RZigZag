@@ -4,9 +4,10 @@
 \alias{ZigZagLogistic}
 \title{ZigZagLogistic}
 \usage{
-ZigZagLogistic(dataX, dataY, n_iterations, x0 = numeric(0), finalTime = -1,
-  subsampling = TRUE, controlvariates = TRUE, n_samples = 0L,
-  n_batches = 0L, computeCovariance = FALSE, upperbound = FALSE)
+ZigZagLogistic(dataX, dataY, n_iterations, x0 = numeric(0),
+  finalTime = -1, subsampling = TRUE, controlvariates = TRUE,
+  n_samples = 0L, n_batches = 0L, computeCovariance = FALSE,
+  upperbound = FALSE)
 }
 \arguments{
 \item{dataX}{Matrix containing the independent variables x. The i-th column represents the i-th observation with components x_{1,i}, ..., x_{d,i}.}

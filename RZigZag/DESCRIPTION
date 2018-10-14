@@ -9,5 +9,5 @@ Description: Implements the Zig-Zag algorithm with subsampling and control varia
 License: GPL (>= 2)
 Imports: Rcpp (>= 0.12.3)
 LinkingTo: Rcpp, RcppEigen
-RoxygenNote: 6.0.1
+RoxygenNote: 6.1.0
 Encoding: UTF-8

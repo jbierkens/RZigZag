@@ -9,7 +9,9 @@ BPSGaussian(V, mu, n_iterations, x0, finalTime = -1, refresh_rate = 1,
   computeCovariance = FALSE)
 }
 \arguments{
-\item{V}{the inverse covariance matrix (or precision matrix) of the Gaussian target distribution; if V is a matrix consisting of a single column, it is interpreted as the diagonal of the precision matrix.//' @param mu mean of the Gaussian target distribution}
+\item{V}{the inverse covariance matrix (or precision matrix) of the Gaussian target distribution; if V is a matrix consisting of a single column, it is interpreted as the diagonal of the precision matrix.}
+
+\item{mu}{mean of the Gaussian target distribution}
 
 \item{n_iterations}{Number of algorithm iterations; will result in the equivalent amount of skeleton points in Gaussian case because no rejections are needed.}
 
@@ -21,7 +23,7 @@ BPSGaussian(V, mu, n_iterations, x0, finalTime = -1, refresh_rate = 1,
 
 \item{unit_velocity}{TRUE indicates velocities uniform on unit sphere, FALSE indicates standard normal velocities}
 
-\item{n_samples}{Number of discrete time samples to extract from the Zig-Zag skeleton.}
+\item{n_samples}{Number of discrete time samples to extract from the skeleton.}
 
 \item{n_batches}{If non-zero, estimate effective sample size through the batch means method, with n_batches number of batches.}
 
