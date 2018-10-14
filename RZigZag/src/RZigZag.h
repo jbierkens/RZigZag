@@ -32,6 +32,12 @@ using Eigen::VectorXi;
 
 double getRandomTime(double a, double b, double u); // simulate T such that P(T>= t) = exp(-at-bt^2/2), using uniform random input u
 
+class DataObject {
+  
+public:
+  virtual double getDerivative(const VectorXd& position, const int index) const;
+};
+
 class Skeleton {
 public:
   void LogisticBasicZZ(const MatrixXd& dataX, const VectorXi& dataY, const int n_iter, const double finalTime, const VectorXd& x0); // logistic regression with zig zag
@@ -50,6 +56,7 @@ private:
   void Push(const double time, const VectorXd& point, const VectorXd& direction, const double finalTime = -1);
   void ShrinkToCurrentSize(); // shrinks to actual size;
   void Resize(const int factor = 2);
+  void ZZStepAffineBound(VectorXd& a, const VectorXd& b, const DataObject& data, const double intendedFinalTime);
 
   MatrixXd Points;
   MatrixXd Directions;
@@ -57,6 +64,7 @@ private:
   int capacity;
   int currentSize;
   int dimension;
+  int currentIndex;
   
   MatrixXd samples;
   VectorXd mode;
@@ -66,3 +74,4 @@ private:
   VectorXd asVarEst;
   VectorXd ESS;
 };
+

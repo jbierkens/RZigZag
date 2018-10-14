@@ -142,6 +142,57 @@ void Skeleton::computeCovariance() {
   covarianceMatrix -= means * means.transpose();
 }
 
+void Skeleton::ZZStepAffineBound(VectorXd& a, const VectorXd& b, const DataObject& data, const double intendedFinalTime) {
+  
+  // Rprintf("currentTime : %g, finalTime : %g, iteration : %d, n_iter : %d\n ", currentTime, finalTime, iteration, n_iter);
+  
+  const int dim = a.size(); 
+  VectorXd x(Points.col(currentIndex));
+  VectorXd direction(Directions.col(currentIndex));
+  double currentTime(Times[currentIndex]);
+  
+  NumericVector U(runif(dim));
+  int i0 = -1;
+  double simulatedTime, minTime;
+  
+  for (int i = 0; i < dim; ++i) {
+    simulatedTime = getRandomTime(a(i), b(i), U(i));
+    if (simulatedTime > 0 && (i0 == -1 || simulatedTime < minTime)) {
+      i0 = i;
+      minTime = simulatedTime;
+    }
+  }
+  if (minTime < 0) {
+    stop("ZZStepAffineBound: Zigzag wandered off to infinity.");
+  }
+  else {
+    currentTime = currentTime + minTime;
+    x = x + minTime * direction;
+    for (int i = 0; i < dim; ++i) {
+      if (i != i0) {
+        a(i) = a(i) + b(i) * minTime;
+        // WHY DID I HAVE THIS BEFORE?
+        // if (derivative_upperbound(i) > 0)
+        //   a(i) = derivative_upperbound(i);
+        // else
+        //   a(i) = 0;
+      }
+    }
+    double derivative = data.getDerivative(x, i0);
+    double V = runif(1)(0);
+    if (V <= direction(i0) * derivative/(a(i0)+b(i0)*minTime)) {
+      direction(i0) = -direction(i0);
+      Push(currentTime, x, direction, intendedFinalTime);
+    }
+    a(i0) = derivative * direction(i0);
+    // AGAIN, WHY?
+    // if (derivative_upperbound(i0) > 0)
+    //   a(i0) = derivative_upperbound(i0);
+    // else
+    //   a(i0) = 0;
+  }
+}
+
 void Skeleton::LogisticBasicZZ(const MatrixXd& dataX, const VectorXi& dataY, const int n_iter, const double finalTime, const VectorXd& x0) {
 
   const int dim = dataX.rows();
