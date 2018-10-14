@@ -5,8 +5,26 @@ Implements the Zig-Zag algorithm with subsampling and control variates (ZZ-CV) o
 
 The Zig-Zag algorithm is an MCMC algorithm which allows for exact subsampling and can therefore be very efficient in situations with large amounts of data.
 
-## Further documentation
+## Installation
+
+Install R packages `Rcpp` and `RcppEigen`:
+
+```r
+install.packages("Rcpp")
+install.packages("RcppEigen")
 ```
+
+Then install `RZigZag` from the command line using
+```
+R CMD INSTALL RZigZag_0.1.1.tar.gz
+```
+or from R using
+```r
+install.packages("RZigZag")
+```
+
+## Further documentation
+```r
 help(RZigZag)
 help(ZigZagLogistic)
 help(ZigZagGaussian)
@@ -37,6 +55,7 @@ points(result$samples[1,], result$samples[2,], col='magenta')
 ### Zig-Zag for a Gaussian target distribution
 
 ```r
+require("RZigZag")
 V <- matrix(c(3,1,1,3),nrow=2,ncol=2)
 mu <- c(2,2)
 result <- ZigZagGaussian(V, mu, 100, n_samples = 10)
