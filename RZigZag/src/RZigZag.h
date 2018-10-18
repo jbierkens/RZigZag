@@ -17,13 +17,13 @@
 // You should have received a copy of the GNU General Public License
 // along with RZigZag.  If not, see <http://www.gnu.org/licenses/>.
 
-
-#include <Rcpp.h>
-
-using namespace Rcpp;
+#ifndef __RZIGZAG_H
+#define __RZIGZAG_H
 
 // [[Rcpp::depends(RcppEigen)]]
 #include <RcppEigen.h>
+
+using namespace Rcpp;
 using Eigen::MatrixXd;
 using Eigen::VectorXd;
 using Eigen::VectorXi;
@@ -35,8 +35,9 @@ double getRandomTime(double a, double b, double u); // simulate T such that P(T>
 class DataObject {
   
 public:
-  virtual double getDerivative(const VectorXd& position, const int index) const;
+  virtual double getDerivative(const VectorXd& position, const int index) const = 0;
 };
+
 
 class Skeleton {
 public:
@@ -56,7 +57,7 @@ private:
   void Push(const double time, const VectorXd& point, const VectorXd& direction, const double finalTime = -1);
   void ShrinkToCurrentSize(); // shrinks to actual size;
   void Resize(const int factor = 2);
-  void ZZStepAffineBound(VectorXd& a, const VectorXd& b, const DataObject& data, const double intendedFinalTime);
+  void ZZStepAffineBound(VectorXd& a, const VectorXd& b, const DataObject& data, double& currentTime, VectorXd& currentPosition, VectorXd& currentDirection, const double intendedFinalTime);
 
   MatrixXd Points;
   MatrixXd Directions;
@@ -64,8 +65,7 @@ private:
   int capacity;
   int currentSize;
   int dimension;
-  int currentIndex;
-  
+
   MatrixXd samples;
   VectorXd mode;
   MatrixXd batchMeans;
@@ -75,3 +75,4 @@ private:
   VectorXd ESS;
 };
 
+#endif

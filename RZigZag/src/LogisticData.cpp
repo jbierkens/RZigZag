@@ -1,4 +1,4 @@
-// LogisticData.cpp : implements useful subroutines for logistic regression
+// LogisticData.cpp : subroutines for logistic regression
 //
 // Copyright (C) 2017--2018 Joris Bierkens
 //
@@ -19,16 +19,16 @@
 
 #include "LogisticData.h"
 
-LogisticData::LogisticData(const MatrixXd* dataXptr, const VectorXi* dataYptr) : dataXptr(dataXptr), dataYptr(dataYptr) {
-  dim = dataXptr->rows();
-  n_observations = dataXptr->cols();
+LogisticData::LogisticData(const MatrixXd& dataX, const VectorXi& dataY) : dataX(dataX), dataY(dataY) {
+  dim = dataX.rows();
+  n_observations = dataX.cols();
 }
 
 double LogisticData::potential(const VectorXd& beta) const {
   double val = 0;
   for (int j = 0; j < n_observations; ++j) {
-    double innerproduct = beta.dot(dataXptr->col(j));
-    val += log(1 + exp(innerproduct)) - (*dataYptr)(j) * innerproduct;
+    double innerproduct = beta.dot(dataX.col(j));
+    val += log(1 + exp(innerproduct)) - dataY(j) * innerproduct;
   }
   return val;
 }
@@ -36,8 +36,8 @@ double LogisticData::potential(const VectorXd& beta) const {
 VectorXd LogisticData::gradient(const VectorXd& beta) const {
   VectorXd grad(VectorXd::Zero(dim));
   for (int j = 0; j < n_observations; ++j) {
-    double val = exp(dataXptr->col(j).dot(beta));
-    grad += dataXptr->col(j) * (val/(1+val) - (*dataYptr)(j));
+    double val = exp(dataX.col(j).dot(beta));
+    grad += dataX.col(j) * (val/(1+val) - dataY(j));
   }
   return grad;
 }
@@ -45,12 +45,29 @@ VectorXd LogisticData::gradient(const VectorXd& beta) const {
 MatrixXd LogisticData::hessian(const VectorXd& beta) const {
   MatrixXd hess(MatrixXd::Zero(dim,dim));
   for (int j = 0; j < n_observations; ++j) {
-    double innerproduct = beta.dot(dataXptr->col(j));
-    hess += (dataXptr->col(j) * dataXptr->col(j).transpose())* exp(innerproduct)/((1+exp(innerproduct)*(1+exp(innerproduct))));
+    double innerproduct = beta.dot(dataX.col(j));
+    hess += (dataX.col(j) * dataX.col(j).transpose())* exp(innerproduct)/((1+exp(innerproduct)*(1+exp(innerproduct))));
   }
   return hess;
 }
 
+double LogisticData::getDerivative(const VectorXd& position, const int index) const {
+  
+  double derivative = 0;
+  for (int j = 0; j < n_observations; ++j) {
+    double val = exp(dataX.col(j).dot(position));
+    derivative += dataX(index,j) * (val/(1+val) - dataY(j));
+  }
+  return derivative;
+}
+
+
+double LogisticData::subsampledDerivative(const VectorXd& position, const int index) const {
+
+  int J = floor(n_observations*runif(1)(0)); // randomly select observation
+  return n_observations * dataX(index,J) * (1.0/(1.0+exp(-dataX.col(J).dot(position))) - dataY(J));
+  
+}
 
 // MatrixXd preprocessLogistic(const MatrixXd& dataX) {
 //   const int n_observations = dataX.cols();
@@ -95,18 +112,6 @@ VectorXd cvBound(const MatrixXd& dataX) {
   return 0.25 * bounds;
 }
 
-double derivativeLogistic(const MatrixXd& dataX, const VectorXi& dataY, const VectorXd& beta, int k) {
-  // compute dPsi/dbeta_k for logistic regression
-  
-  const int n_observations = dataX.cols();
-  double derivative = 0;
-  
-  for (int j = 0; j < n_observations; ++j) {
-    double val = exp(dataX.col(j).dot(beta));
-    derivative += dataX(k,j) * (val/(1+val) - dataY(j));
-  }
-  return derivative;
-}
 
 VectorXd logisticUpperbound(const MatrixXd& dataX) {
   return dataX.array().abs().rowwise().maxCoeff();
