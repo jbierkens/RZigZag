@@ -58,7 +58,8 @@ private:
   void ShrinkToCurrentSize(); // shrinks to actual size;
   void Resize(const int factor = 2);
   void ZZStepAffineBound(VectorXd& a, const VectorXd& b, const DataObject& data, double& currentTime, VectorXd& currentPosition, VectorXd& currentDirection, const double intendedFinalTime);
-
+  void ZZStepConstantBound(const VectorXd& a, const DataObject& data, double& currentTime, VectorXd& position, VectorXd& direction, const double intendedFinalTime);
+    
   MatrixXd Points;
   MatrixXd Directions;
   VectorXd Times;

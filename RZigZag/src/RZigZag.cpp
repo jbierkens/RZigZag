@@ -152,9 +152,7 @@ void Skeleton::computeCovariance() {
 
 void Skeleton::ZZStepAffineBound(VectorXd& a, const VectorXd& b, const DataObject& data, double& currentTime, VectorXd& position, VectorXd& direction, const double intendedFinalTime) {
   
-  // Rprintf("currentTime : %g, finalTime : %g, iteration : %d, n_iter : %d\n ", currentTime, finalTime, iteration, n_iter);
-  
-  const int dim = a.size(); 
+  const int dim = position.size(); 
 
   NumericVector U(runif(dim));
   int i0 = -1;
@@ -174,31 +172,47 @@ void Skeleton::ZZStepAffineBound(VectorXd& a, const VectorXd& b, const DataObjec
     currentTime = currentTime + minTime;
     position = position + minTime * direction;
     a = a + b * minTime;
-    // for (int i = 0; i < dim; ++i) {
-    //   if (i != i0) {
-    //     a(i) = a(i) + b(i) * minTime;
-    //     // WHY DID I HAVE THIS BEFORE?
-    //     // if (derivative_upperbound(i) > 0)
-    //     //   a(i) = derivative_upperbound(i);
-    //     // else
-    //     //   a(i) = 0;
-    //   }
-    // }
     double derivative = data.getDerivative(position, i0);
-    Rprintf("intensity: %g, upper bound: %g\n", direction(i0)*derivative, a(i0) + b(i0)*minTime);
     double V = runif(1)(0);
-    if (V <= direction(i0) * derivative/pospart(a(i0)+b(i0)*minTime)) {
+    if (V <= direction(i0) * derivative/a(i0)) {
       direction(i0) = -direction(i0);
       Push(currentTime, position, direction, intendedFinalTime);
     }
     a(i0) = derivative * direction(i0);
-    // AGAIN, WHY?
-    // if (derivative_upperbound(i0) > 0)
-    //   a(i0) = derivative_upperbound(i0);
-    // else
-    //   a(i0) = 0;
   }
 }
+
+
+void Skeleton::ZZStepConstantBound(const VectorXd& a, const DataObject& data, double& currentTime, VectorXd& position, VectorXd& direction, const double intendedFinalTime) {
+  
+  const int dim = position.size(); 
+  
+  NumericVector U(runif(dim));
+  int i0 = -1;
+  double simulatedTime, minTime;
+  
+  for (int i = 0; i < dim; ++i) {
+    simulatedTime = getRandomTime(a(i), 0, U(i));
+    if (simulatedTime > 0 && (i0 == -1 || simulatedTime < minTime)) {
+      i0 = i;
+      minTime = simulatedTime;
+    }
+  }
+  if (minTime < 0) {
+    stop("ZZStepConstantBound: Zigzag wandered off to infinity.");
+  }
+  else {
+    currentTime = currentTime + minTime;
+    position = position + minTime * direction;
+    double derivative = data.getDerivative(position, i0);
+    double V = runif(1)(0);
+    if (V <= direction(i0) * derivative/a(i0)) {
+      direction(i0) = -direction(i0);
+      Push(currentTime, position, direction, intendedFinalTime);
+    }
+  }
+}
+
 
 void Skeleton::LogisticBasicZZ(const MatrixXd& dataX, const VectorXi& dataY, const int n_iter, const double finalTime, const VectorXd& x0) {
   
@@ -214,18 +228,14 @@ void Skeleton::LogisticBasicZZ(const MatrixXd& dataX, const VectorXi& dataY, con
   VectorXd theta(VectorXd::Constant(dim, 1)); // initialize theta at (+1,...,+1)
   
   const VectorXd b(sqrt((double)dim) * Q.rowwise().norm());
-  // VectorXd derivative_upperbound(dim);
   VectorXd a(dim);
   for (int k = 0; k < dim; ++k) 
-    // derivative_upperbound(k) = theta(k) * logisticData.getDerivative(x, k);
-    // a(k) = pospart(derivative_upperbound(k));
     a(k) = theta(k) * logisticData.getDerivative(x, k);
   
   
   RNGScope scp; // initialize random number generator
   
   double minTime, simulatedTime;
-  int switches = 0;
   double currentTime = 0;
   int iteration = 0;
   
@@ -233,14 +243,11 @@ void Skeleton::LogisticBasicZZ(const MatrixXd& dataX, const VectorXi& dataY, con
   Push(currentTime, x, theta);
   
   while (currentTime < finalTime || iteration < n_iter) {
-    
     ++iteration;
-
     ZZStepAffineBound(a, b, logisticData, currentTime, x, theta, finalTime);
-
   }
   ShrinkToCurrentSize();
-  Rprintf("LogisticBasicZZ: Fraction of accepted switches: %g\n", double(switches)/(iteration));
+  Rprintf("LogisticBasicZZ: Fraction of accepted switches: %g\n", double(currentSize)/(iteration));
 }
 
 void Skeleton::LogisticUpperboundZZ(const MatrixXd& dataX, const VectorXi& dataY, const int n_iter, const double finalTime, const VectorXd& x0) {
@@ -257,8 +264,6 @@ void Skeleton::LogisticUpperboundZZ(const MatrixXd& dataX, const VectorXi& dataY
   VectorXd x(x0);
   const VectorXd a(n_observations * logisticUpperbound(dataX));
   
-  int switches = 0;
-  
   RNGScope scp; // initialize random number generator
   
   double minTime, simulatedTime;
@@ -270,33 +275,10 @@ void Skeleton::LogisticUpperboundZZ(const MatrixXd& dataX, const VectorXi& dataY
   int iteration = 0;
   while (iteration < n_iter || currentTime < finalTime) {
     ++iteration;
-    NumericVector U(runif(dim));
-    i0 = -1;
-    for (int i = 0; i < dim; ++i) {
-      simulatedTime = getRandomTime(a(i), 0, U(i));
-      if (simulatedTime > 0 && (i0 == -1 || simulatedTime < minTime)) {
-        i0 = i;
-        minTime = simulatedTime;
-      }
-    }
-    if (minTime < 0) {
-      Rprintf("Zig zag wandered off to infinity.\n");
-      break;
-    }
-    else {
-      currentTime = currentTime + minTime;
-      x = x + minTime * theta;
-      double derivative = logisticData.getDerivative(x, i0);
-      double V = runif(1)(0);
-      if (V <= theta(i0) * derivative/a(i0)) {
-        theta(i0) = -theta(i0);
-        ++switches;
-        Push(currentTime, x, theta, finalTime);
-      }
-    }
+    ZZStepConstantBound(a, logisticData, currentTime, x, theta, finalTime);
   }
   ShrinkToCurrentSize();
-  Rprintf("LogisticUpperboundZZ: Fraction of accepted switches: %g\n", double(switches)/(iteration));
+  Rprintf("LogisticUpperboundZZ: Fraction of accepted switches: %g\n", double(currentSize)/(iteration));
 }
 
 void Skeleton::LogisticSubsamplingZZ(const MatrixXd& dataX, const VectorXi& dataY, const int n_iter, const double finalTime, const VectorXd& x0) {
@@ -668,8 +650,7 @@ List ZigZagLogistic(const Eigen::MatrixXd dataX, const Eigen::VectorXi dataY, in
   Skeleton skeleton;
   if (finalTime >= 0)
     n_iterations = -1;
-  Rprintf("Here.\n");
-  
+
   if (upperbound)
     skeleton.LogisticUpperboundZZ(dataX, dataY, n_iterations, finalTime, x);
   else if (controlvariates) 
