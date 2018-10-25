@@ -48,33 +48,28 @@ public:
 
 class AffineBound : public ComputationalBound {
 public:
-  AffineBound(const VectorXd& b): b{b} {};
-  AffineBound(VectorXd& a, const VectorXd& b): a{a}, b{b} {};
+  AffineBound(const VectorXd& a, const VectorXd& b): a{a}, b{b} {};
+  // AffineBound() {};
   void proposeTimeAndUpdateBound(int& index, double& deltaT);
   void updateBound(const int index, const double partial_derivative, const VectorXd& x, const VectorXd& v);
   double getBound(const int index);
   
 protected:
   VectorXd a;
-  const VectorXd b;
+  VectorXd b;
 };
 
-class ConstantBound : public ComputationalBound {
+class ConstantBound : public AffineBound {
 public:
-  ConstantBound(const VectorXd& a): a{a} {};
-  void proposeTimeAndUpdateBound(int& index, double& deltaT);
-  void updateBound(const int index, const double partial_derivative, const VectorXd& x, const VectorXd& v);
-  double getBound(const int index);
-  
-private:
-  const VectorXd a;
+  ConstantBound(const VectorXd& a): AffineBound(a, VectorXd::Zero(a.size())) {};
+  void updateBound(const int index, const double partial_derivative, const VectorXd& x, const VectorXd& v) {};
 };
 
 class CVBound : public AffineBound {
 public:
+  CVBound(const VectorXd& b, const VectorXd& uniformBound, const VectorXd& x_ref, const VectorXd& grad_ref, const VectorXd& x, const VectorXd& v) : AffineBound(VectorXd::Zero(b.size()),b), uniformBound{uniformBound}, x_ref{x_ref}, grad_ref{grad_ref} { updateBound(0, 0, x, v); };
   void updateBound(const int index, const double partial_derivative, const VectorXd& x, const VectorXd& v);
-  CVBound(const VectorXd& b, const VectorXd& uniformBound, const VectorXd& x_ref, const VectorXd& grad_ref, const VectorXd& x, const VectorXd& v) : AffineBound(b), uniformBound{uniformBound}, x_ref{x_ref}, grad_ref{grad_ref} { updateBound(0, 0, x, v); };
-
+  
 private:
   const VectorXd uniformBound;  // bound to be used for updates, uniform over observations 
   const VectorXd x_ref;
@@ -83,12 +78,12 @@ private:
 
 class Skeleton {
 public:
-  void ZigZag(const DataObject& data, ComputationalBound& computationalBound, const VectorXd& x0, const VectorXd& v0, const int n_iter, const double finalTime);
+  void ZigZag(const DataObject& data, ComputationalBound& computationalBound, const VectorXd& x0, const VectorXd& v0, const int n_iter, const double finalTime, bool rejectionFree = false);
   void LogisticBasicZZ(const MatrixXd& dataX, const VectorXi& dataY, const int n_iter, const double finalTime, const VectorXd& x0, const VectorXd& v0); // logistic regression with zig zag
   void LogisticUpperboundZZ(const MatrixXd& dataX, const VectorXi& dataY, const int n_iter, const double finalTime, const VectorXd& x0, const VectorXd& v0); 
   void LogisticSubsamplingZZ(const MatrixXd& dataX, const VectorXi& dataY, const int n_iter, const double finalTime, const VectorXd& x0, const VectorXd& v0);
   void LogisticCVZZ(const MatrixXd& dataX, const VectorXi& dataY, const int n_iter, const double finalTime, VectorXd& x0, const VectorXd& v0, VectorXd x_ref = VectorXd()); // control variates zigzag
-  void GaussianZZ(const MatrixXd& V, const VectorXd& mu, const int n_iter, const double finalTime, const VectorXd& x0); // sample Gaussian with precision matrix V
+  void GaussianZZ(const MatrixXd& V, const VectorXd& mu, const int n_iter, const double finalTime, const VectorXd& x0, const VectorXd& v0); // sample Gaussian with precision matrix V
   void GaussianBPS(const MatrixXd& V, const VectorXd& mu, const int n_iter, const double finalTime, const VectorXd& x0, const double refresh_rate, const bool unit_velocity = true); // sample Gaussian with precision matrix V
   void sample(const int n_samples);
   void computeBatchMeans(const int n_batches);
@@ -100,7 +95,7 @@ private:
   void Push(const double time, const VectorXd& point, const VectorXd& direction, const double finalTime = -1);
   void ShrinkToCurrentSize(); // shrinks to actual size;
   void Resize(const int factor = 2);
-  void ZZStep(ComputationalBound& computationalBound, const DataObject& data, double& currentTime, VectorXd& position, VectorXd& direction, const double intendedFinalTime);
+  void ZZStep(ComputationalBound& computationalBound, const DataObject& data, double& currentTime, VectorXd& position, VectorXd& direction, const double intendedFinalTime, bool rejectionFree);
     
   MatrixXd Points;
   MatrixXd Directions;

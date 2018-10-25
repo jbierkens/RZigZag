@@ -30,8 +30,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // ZigZagGaussian
-List ZigZagGaussian(const Eigen::MatrixXd V, const Eigen::VectorXd mu, int n_iterations, const Eigen::VectorXd x0, const double finalTime, const int n_samples, const int n_batches, bool computeCovariance);
-RcppExport SEXP _RZigZag_ZigZagGaussian(SEXP VSEXP, SEXP muSEXP, SEXP n_iterationsSEXP, SEXP x0SEXP, SEXP finalTimeSEXP, SEXP n_samplesSEXP, SEXP n_batchesSEXP, SEXP computeCovarianceSEXP) {
+List ZigZagGaussian(const Eigen::MatrixXd V, const Eigen::VectorXd mu, int n_iterations, const Eigen::VectorXd x0, const double finalTime, const int n_samples, const int n_batches, bool computeCovariance, const NumericVector v0);
+RcppExport SEXP _RZigZag_ZigZagGaussian(SEXP VSEXP, SEXP muSEXP, SEXP n_iterationsSEXP, SEXP x0SEXP, SEXP finalTimeSEXP, SEXP n_samplesSEXP, SEXP n_batchesSEXP, SEXP computeCovarianceSEXP, SEXP v0SEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -43,7 +43,8 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const int >::type n_samples(n_samplesSEXP);
     Rcpp::traits::input_parameter< const int >::type n_batches(n_batchesSEXP);
     Rcpp::traits::input_parameter< bool >::type computeCovariance(computeCovarianceSEXP);
-    rcpp_result_gen = Rcpp::wrap(ZigZagGaussian(V, mu, n_iterations, x0, finalTime, n_samples, n_batches, computeCovariance));
+    Rcpp::traits::input_parameter< const NumericVector >::type v0(v0SEXP);
+    rcpp_result_gen = Rcpp::wrap(ZigZagGaussian(V, mu, n_iterations, x0, finalTime, n_samples, n_batches, computeCovariance, v0));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -70,7 +71,7 @@ END_RCPP
 
 static const R_CallMethodDef CallEntries[] = {
     {"_RZigZag_ZigZagLogistic", (DL_FUNC) &_RZigZag_ZigZagLogistic, 13},
-    {"_RZigZag_ZigZagGaussian", (DL_FUNC) &_RZigZag_ZigZagGaussian, 8},
+    {"_RZigZag_ZigZagGaussian", (DL_FUNC) &_RZigZag_ZigZagGaussian, 9},
     {"_RZigZag_BPSGaussian", (DL_FUNC) &_RZigZag_BPSGaussian, 10},
     {NULL, NULL, 0}
 };

@@ -29,6 +29,7 @@ using Eigen::VectorXd;
 #include "RZigZag.h"
 
 #include "LogisticData.h"
+#include "GaussianData.h"
 
 void Skeleton::Initialize(const int dim, int initialSize) {
   if (initialSize >= 0)
@@ -168,41 +169,36 @@ double AffineBound::getBound(const int index) {
   return a(index);
 }
 
-void ConstantBound::proposeTimeAndUpdateBound(int &index, double &deltaT) {
-  
-  const int dim = a.size();
-  NumericVector U(runif(dim));
-  index = - 1;
-  deltaT = -1;
-  
-  for (int i = 0; i < dim; ++i) {
-    double simulatedTime = getRandomTime(a(i), 0, U(i));
-    if (simulatedTime > 0 && (index == -1 || simulatedTime < deltaT)) {
-      index = i;
-      deltaT = simulatedTime;
-    }
-  }
-}
-
-void ConstantBound::updateBound(const int index, const double value, const VectorXd& x, const VectorXd& v) {
-}
-
-double ConstantBound::getBound(const int index) {
-  return a(index);
-}
+// void ConstantBound::proposeTimeAndUpdateBound(int &index, double &deltaT) {
+//   
+//   const int dim = a.size();
+//   NumericVector U(runif(dim));
+//   index = - 1;
+//   deltaT = -1;
+//   
+//   for (int i = 0; i < dim; ++i) {
+//     double simulatedTime = getRandomTime(a(i), 0, U(i));
+//     if (simulatedTime > 0 && (index == -1 || simulatedTime < deltaT)) {
+//       index = i;
+//       deltaT = simulatedTime;
+//     }
+//   }
+// }
 
 void CVBound::updateBound(const int index, const double value, const VectorXd& x, const VectorXd& v) {
   VectorXd a_ref = (v.cwiseProduct(grad_ref)).unaryExpr(&pospart);
   a = (x-x_ref).norm() * uniformBound + a_ref;
 }
 
-void Skeleton::ZZStep(ComputationalBound& computationalBound, const DataObject& data, double& currentTime, VectorXd& position, VectorXd& direction, const double intendedFinalTime) {
-  
-  const int dim = position.size(); 
+void Skeleton::ZZStep(ComputationalBound& computationalBound, const DataObject& data, double& currentTime, VectorXd& position, VectorXd& direction, const double intendedFinalTime, bool rejectionFree) {
   
   int proposedIndex;
   double deltaT;
+  
+  
+  
   computationalBound.proposeTimeAndUpdateBound(proposedIndex, deltaT);
+
   if (deltaT < 0)
   {
     stop("ZZStep: ZigZag wandered off to infinity.");
@@ -211,19 +207,27 @@ void Skeleton::ZZStep(ComputationalBound& computationalBound, const DataObject& 
     currentTime = currentTime + deltaT;
     position = position + deltaT * direction;
     double derivative = data.getDerivative(position, proposedIndex);
-    double V = runif(1)(0);
-    double bound = computationalBound.getBound(proposedIndex);
-    if (direction(proposedIndex)*derivative > bound)
-      stop("ZZStep: switching rate > bound.");
-    if (V <= direction(proposedIndex) * derivative/bound) {
+    if (rejectionFree)
+    {
       direction(proposedIndex) = -direction(proposedIndex);
       Push(currentTime, position, direction, intendedFinalTime);
+    }
+    else
+    {
+      double V = runif(1)(0);
+      double bound = computationalBound.getBound(proposedIndex);
+      if (direction(proposedIndex)*derivative > bound)
+        stop("ZZStep: switching rate > bound.");
+      if (V <= direction(proposedIndex) * derivative/bound) {
+        direction(proposedIndex) = -direction(proposedIndex);
+        Push(currentTime, position, direction, intendedFinalTime);
+      }
     }
     computationalBound.updateBound(proposedIndex, derivative * direction(proposedIndex), position, direction);
   }
 }
 
-void Skeleton::ZigZag(const DataObject& data, ComputationalBound& computationalBound, const VectorXd& x0, const VectorXd& v0, const int n_iter, const double finalTime) {
+void Skeleton::ZigZag(const DataObject& data, ComputationalBound& computationalBound, const VectorXd& x0, const VectorXd& v0, const int n_iter, const double finalTime, bool rejectionFree) {
   
   const int dim = data.getDim();
   
@@ -241,7 +245,7 @@ void Skeleton::ZigZag(const DataObject& data, ComputationalBound& computationalB
   
   while (currentTime < finalTime || iteration < n_iter) {
     ++iteration;
-    ZZStep(computationalBound, data, currentTime, x, v, finalTime);
+    ZZStep(computationalBound, data, currentTime, x, v, finalTime, rejectionFree);
   }
   ShrinkToCurrentSize();
   Rprintf("ZigZag: Fraction of accepted switches: %g\n", double(currentSize)/(iteration));
@@ -272,81 +276,18 @@ void Skeleton::LogisticSubsamplingZZ(const MatrixXd& dataX, const VectorXi& data
 void Skeleton::LogisticCVZZ(const MatrixXd& dataX, const VectorXi& dataY, const int n_iter, const double finalTime, VectorXd& x0, const VectorXd& v0, VectorXd x_ref) {
   
   LogisticDataForSubsampling logisticData(&dataX, &dataY);
-  CVBound cvBound = logisticData.getCVBoundObject(x0, v0, x_ref);
-
+  CVBound cvBound(logisticData.getCVBoundObject(x0, v0, x_ref));
   ZigZag(logisticData, cvBound, x0, v0, n_iter, finalTime);
 }
 
-void Skeleton::GaussianZZ(const MatrixXd& V, const VectorXd& mu, const int n_iter, const double finalTime, const VectorXd& x0) {
+void Skeleton::GaussianZZ(const MatrixXd& V, const VectorXd& mu, const int n_iter, const double finalTime, const VectorXd& x0, const VectorXd& v0) {
   // Gaussian skeleton
   // input: V precision matrix (inverse covariance), mu mean, x0 initial condition, n_iter number of switches
   // invariant: w = V theta, z = V (x-mu)
-
-  const int dim = V.rows();
-  bool productForm = false;
-  ArrayXd diagV;
-  if (V.cols() != V.rows())
-  {
-    productForm = true;
-    diagV = V.array();
-  }
-
-  if (x0.size() != dim)
-    stop("GaussianZZ error: dimension of starting position x0 should agree with dimensions of precision matrix V.");
   
-  VectorXd x(x0);
-  VectorXd theta = VectorXd::Constant(dim, 1); // initialize theta at (+1,...,+1)
-  ArrayXd w, z;
-  if (productForm) {
-    w = diagV * theta.array();
-    z = diagV * (x-mu).array();
-  }
-  else {
-    w = (V * theta).array();
-    z = (V * (x - mu)).array();
-  }
-  ArrayXd a(theta.array() * z), b(theta.array() * w); // convert to array for pointwise multiplication
-
-  RNGScope scp; // initialize random number generator
-
-  double minTime, simulatedTime;
-  int i0;
-  double currentTime = 0;
-  int iteration = 0;
-
-  Initialize(dim, n_iter);
-  Push(currentTime, x, theta);
-  
-  while (iteration < n_iter || currentTime < finalTime) {
-    ++iteration;
-    NumericVector U(runif(dim));
-    i0 = -1;
-    for (int i = 0; i < dim; ++i) {
-      simulatedTime = getRandomTime(a(i), b(i), U(i));
-      if (simulatedTime > 0 && (i0 == -1 || simulatedTime < minTime)) {
-        i0 = i;
-        minTime = simulatedTime;
-      }
-    }
-    if (minTime < 0) {
-      // this means that we simulated T = inf
-      stop("Zig zag wandered off to infinity.");
-    }
-    else {
-      currentTime = currentTime + minTime;
-      x = x + minTime * theta;
-      theta(i0) = -theta(i0);
-      z = z + w * minTime; // preserve invariant  z = V (x-mu)
-      if (productForm)
-        w(i0) = w[i0] + 2 * theta(i0) * V(i0);
-      else
-        w = w + 2 * theta(i0) * V.col(i0).array(); // preserve invariant w = V theta
-      a = theta.array() * z;
-      b = theta.array() * w;
-      Push(currentTime, x, theta, finalTime);
-    }
-  }
-  ShrinkToCurrentSize();
+  GaussianData data(&V, mu);
+  GaussianBound bound(data.getGaussianBoundObject(x0, v0));
+  ZigZag(data, bound, x0, v0, n_iter, finalTime, true); // rejectionFree = true
 }
 
 VectorXd resampleVelocity(const int dim, const bool unit_velocity = true) {
@@ -596,11 +537,17 @@ List ZigZagLogistic(const Eigen::MatrixXd dataX, const Eigen::VectorXi dataY, in
 //' points(result$samples[1,], result$samples[2,], col='magenta')
 //' @export
 // [[Rcpp::export]]
-List ZigZagGaussian(const Eigen::MatrixXd V, const Eigen::VectorXd mu, int n_iterations, const Eigen::VectorXd x0, const double finalTime = -1, const int n_samples=0, const int n_batches=0, bool computeCovariance=false) {
+List ZigZagGaussian(const Eigen::MatrixXd V, const Eigen::VectorXd mu, int n_iterations, const Eigen::VectorXd x0, const double finalTime = -1, const int n_samples=0, const int n_batches=0, bool computeCovariance=false, const NumericVector v0 = NumericVector(0)) {
   Skeleton skeleton;
   if (finalTime >= 0)
     n_iterations = -1;
-  skeleton.GaussianZZ(V, mu, n_iterations, finalTime, x0);
+  const int dim = V.rows();
+  VectorXd v;
+  if (v0.size() < dim)
+    v = VectorXd::Ones(dim);
+  else
+    v = as<Eigen::Map<VectorXd> >(v0);
+  skeleton.GaussianZZ(V, mu, n_iterations, finalTime, x0,v);
   if (n_samples > 0)
     skeleton.sample(n_samples);
   if (n_batches > 0)

@@ -1,3 +1,4 @@
+* TODO: update help
 * TODO: allow for user provided starting direction
 * TODO: R helper function to 
   - extract samples from derived skeleton
@@ -10,6 +11,7 @@
 * TODO: rethink memory usage
 
 # RZigZag 0.1.7
+* allow user to provide starting direction and custom reference points for control variates (ZigZagLogistic)
 * allow for V (Gaussian case) to be column vector containing diagonal of precision matrix
 
 # RZigZag 0.1.6

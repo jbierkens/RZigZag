@@ -87,8 +87,8 @@ ZigZagLogistic <- function(dataX, dataY, n_iterations, x0 = numeric(0), finalTim
 #' plot(result$skeletonPoints[1,], result$skeletonPoints[2,],type='l',asp=1)
 #' points(result$samples[1,], result$samples[2,], col='magenta')
 #' @export
-ZigZagGaussian <- function(V, mu, n_iterations, x0, finalTime = -1, n_samples = 0L, n_batches = 0L, computeCovariance = FALSE) {
-    .Call('_RZigZag_ZigZagGaussian', PACKAGE = 'RZigZag', V, mu, n_iterations, x0, finalTime, n_samples, n_batches, computeCovariance)
+ZigZagGaussian <- function(V, mu, n_iterations, x0, finalTime = -1, n_samples = 0L, n_batches = 0L, computeCovariance = FALSE, v0 = numeric(0)) {
+    .Call('_RZigZag_ZigZagGaussian', PACKAGE = 'RZigZag', V, mu, n_iterations, x0, finalTime, n_samples, n_batches, computeCovariance, v0)
 }
 
 #' BPSGaussian
