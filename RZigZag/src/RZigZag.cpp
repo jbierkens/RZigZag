@@ -30,13 +30,6 @@ using Eigen::VectorXd;
 
 #include "LogisticData.h"
 
-inline double pospart(const double a) {
-  if (a > 0)
-    return a;
-  else
-    return 0;
-}
-
 void Skeleton::Initialize(const int dim, int initialSize) {
   if (initialSize >= 0)
     initialSize++; // allow for one extra point (the starting point)
@@ -150,254 +143,138 @@ void Skeleton::computeCovariance() {
   covarianceMatrix -= means * means.transpose();
 }
 
-void Skeleton::ZZStepAffineBound(VectorXd& a, const VectorXd& b, const DataObject& data, double& currentTime, VectorXd& position, VectorXd& direction, const double intendedFinalTime) {
+void AffineBound::proposeTimeAndUpdateBound(int &index, double &deltaT) {
   
-  const int dim = position.size(); 
-
+  const int dim = a.size();
   NumericVector U(runif(dim));
-  int i0 = -1;
-  double simulatedTime, minTime;
-
+  index = - 1;
+  deltaT = -1;
+  
   for (int i = 0; i < dim; ++i) {
-    simulatedTime = getRandomTime(a(i), b(i), U(i));
-    if (simulatedTime > 0 && (i0 == -1 || simulatedTime < minTime)) {
-      i0 = i;
-      minTime = simulatedTime;
+    double simulatedTime = getRandomTime(a(i), b(i), U(i));
+    if (simulatedTime > 0 && (index == -1 || simulatedTime < deltaT)) {
+      index = i;
+      deltaT = simulatedTime;
     }
   }
-  if (minTime < 0) {
-    stop("ZZStepAffineBound: Zigzag wandered off to infinity.");
-  }
-  else {
-    currentTime = currentTime + minTime;
-    position = position + minTime * direction;
-    a = a + b * minTime;
-    double derivative = data.getDerivative(position, i0);
-    double V = runif(1)(0);
-    if (V <= direction(i0) * derivative/a(i0)) {
-      direction(i0) = -direction(i0);
-      Push(currentTime, position, direction, intendedFinalTime);
-    }
-    a(i0) = derivative * direction(i0);
-  }
+  a = a + b * deltaT;
 }
 
+void AffineBound::updateBound(const int index, const double value, const VectorXd& x, const VectorXd& v) {
+  a(index) = value;
+}
 
-void Skeleton::ZZStepConstantBound(const VectorXd& a, const DataObject& data, double& currentTime, VectorXd& position, VectorXd& direction, const double intendedFinalTime) {
+double AffineBound::getBound(const int index) {
+  return a(index);
+}
+
+void ConstantBound::proposeTimeAndUpdateBound(int &index, double &deltaT) {
   
-  const int dim = position.size(); 
-  
+  const int dim = a.size();
   NumericVector U(runif(dim));
-  int i0 = -1;
-  double simulatedTime, minTime;
+  index = - 1;
+  deltaT = -1;
   
   for (int i = 0; i < dim; ++i) {
-    simulatedTime = getRandomTime(a(i), 0, U(i));
-    if (simulatedTime > 0 && (i0 == -1 || simulatedTime < minTime)) {
-      i0 = i;
-      minTime = simulatedTime;
-    }
-  }
-  if (minTime < 0) {
-    stop("ZZStepConstantBound: Zigzag wandered off to infinity.");
-  }
-  else {
-    currentTime = currentTime + minTime;
-    position = position + minTime * direction;
-    double derivative = data.getDerivative(position, i0);
-    double V = runif(1)(0);
-    if (V <= direction(i0) * derivative/a(i0)) {
-      direction(i0) = -direction(i0);
-      Push(currentTime, position, direction, intendedFinalTime);
+    double simulatedTime = getRandomTime(a(i), 0, U(i));
+    if (simulatedTime > 0 && (index == -1 || simulatedTime < deltaT)) {
+      index = i;
+      deltaT = simulatedTime;
     }
   }
 }
 
+void ConstantBound::updateBound(const int index, const double value, const VectorXd& x, const VectorXd& v) {
+}
 
-void Skeleton::LogisticBasicZZ(const MatrixXd& dataX, const VectorXi& dataY, const int n_iter, const double finalTime, const VectorXd& x0) {
-  
-  const LogisticData logisticData(dataX, dataY);
-  const int dim = dataX.rows();
-  
-  MatrixXd Q(domHessianLogistic(dataX));
-  
-  if (x0.size() != dim)
-    stop("LogisticBasicZZ error: dimension of starting position should be equal to number of covariates in data.");
+double ConstantBound::getBound(const int index) {
+  return a(index);
+}
 
+void CVBound::updateBound(const int index, const double value, const VectorXd& x, const VectorXd& v) {
+  VectorXd a_ref = (v.cwiseProduct(grad_ref)).unaryExpr(&pospart);
+  a = (x-x_ref).norm() * uniformBound + a_ref;
+}
+
+void Skeleton::ZZStep(ComputationalBound& computationalBound, const DataObject& data, double& currentTime, VectorXd& position, VectorXd& direction, const double intendedFinalTime) {
+  
+  const int dim = position.size(); 
+  
+  int proposedIndex;
+  double deltaT;
+  computationalBound.proposeTimeAndUpdateBound(proposedIndex, deltaT);
+  if (deltaT < 0)
+  {
+    stop("ZZStep: ZigZag wandered off to infinity.");
+  }
+  else {
+    currentTime = currentTime + deltaT;
+    position = position + deltaT * direction;
+    double derivative = data.getDerivative(position, proposedIndex);
+    double V = runif(1)(0);
+    double bound = computationalBound.getBound(proposedIndex);
+    if (direction(proposedIndex)*derivative > bound)
+      stop("ZZStep: switching rate > bound.");
+    if (V <= direction(proposedIndex) * derivative/bound) {
+      direction(proposedIndex) = -direction(proposedIndex);
+      Push(currentTime, position, direction, intendedFinalTime);
+    }
+    computationalBound.updateBound(proposedIndex, derivative * direction(proposedIndex), position, direction);
+  }
+}
+
+void Skeleton::ZigZag(const DataObject& data, ComputationalBound& computationalBound, const VectorXd& x0, const VectorXd& v0, const int n_iter, const double finalTime) {
+  
+  const int dim = data.getDim();
+  
+  if (x0.size() != dim || v0.size() != dim)
+    stop("ZigZag: dimension of starting position/direction should be equal to state space dimension.");
+  
   VectorXd x(x0);
-  VectorXd theta(VectorXd::Constant(dim, 1)); // initialize theta at (+1,...,+1)
+  VectorXd v(v0);
   
-  const VectorXd b(sqrt((double)dim) * Q.rowwise().norm());
-  VectorXd a(dim);
-  for (int k = 0; k < dim; ++k) 
-    a(k) = theta(k) * logisticData.getDerivative(x, k);
-  
-  
-  RNGScope scp; // initialize random number generator
-  
-  double minTime, simulatedTime;
   double currentTime = 0;
   int iteration = 0;
   
   Initialize(dim, n_iter);
-  Push(currentTime, x, theta);
+  Push(currentTime, x, v);
   
   while (currentTime < finalTime || iteration < n_iter) {
     ++iteration;
-    ZZStepAffineBound(a, b, logisticData, currentTime, x, theta, finalTime);
+    ZZStep(computationalBound, data, currentTime, x, v, finalTime);
   }
   ShrinkToCurrentSize();
-  Rprintf("LogisticBasicZZ: Fraction of accepted switches: %g\n", double(currentSize)/(iteration));
+  Rprintf("ZigZag: Fraction of accepted switches: %g\n", double(currentSize)/(iteration));
 }
 
-void Skeleton::LogisticUpperboundZZ(const MatrixXd& dataX, const VectorXi& dataY, const int n_iter, const double finalTime, const VectorXd& x0) {
+void Skeleton::LogisticBasicZZ(const MatrixXd& dataX, const VectorXi& dataY, const int n_iter, const double finalTime, const VectorXd& x0, const VectorXd& v0) {
   
-  const LogisticData logisticData(dataX, dataY);
-
-  const int dim = dataX.rows();
-  if (x0.size() != dim)
-    stop("LogisticUpperboundZZ error: dimension of starting position should be equal to number of covariates in data.");
-  
-  const int n_observations = dataX.cols();
-  VectorXd theta(VectorXd::Constant(dim, 1)); // initialize theta at (+1,...,+1)
-  double currentTime = 0;
-  VectorXd x(x0);
-  const VectorXd a(n_observations * logisticUpperbound(dataX));
-  
-  RNGScope scp; // initialize random number generator
-  
-  double minTime, simulatedTime;
-  
-  int i0;
-  Initialize(dim, n_iter);
-  Push(currentTime, x, theta);
-
-  int iteration = 0;
-  while (iteration < n_iter || currentTime < finalTime) {
-    ++iteration;
-    ZZStepConstantBound(a, logisticData, currentTime, x, theta, finalTime);
-  }
-  ShrinkToCurrentSize();
-  Rprintf("LogisticUpperboundZZ: Fraction of accepted switches: %g\n", double(currentSize)/(iteration));
+  const LogisticData logisticData(&dataX, &dataY);
+  AffineBound affineBound(logisticData.getAffineBoundObject(x0,v0));
+  ZigZag(logisticData, affineBound, x0, v0, n_iter, finalTime);
 }
 
-void Skeleton::LogisticSubsamplingZZ(const MatrixXd& dataX, const VectorXi& dataY, const int n_iter, const double finalTime, const VectorXd& x0) {
+void Skeleton::LogisticUpperboundZZ(const MatrixXd& dataX, const VectorXi& dataY, const int n_iter, const double finalTime, const VectorXd& x0, const VectorXd& v0) {
   
-  const LogisticData logisticData(dataX, dataY);
-  
-  const int dim = dataX.rows();
-  const int n_observations = dataX.cols();
-  
-  VectorXd theta(VectorXd::Constant(dim,1)); // initialize theta at (+1,...,+1)
-  double currentTime = 0;
-  if (x0.size() != dim)
-    stop("LogisticSubsamplingZZ error: dimension of starting position should be equal to number of covariates in data.");
-  VectorXd x(x0);
-  VectorXd upperbound(n_observations * logisticUpperbound(dataX));
-  
-  RNGScope scp; // initialize random number generator
-  
-  double minTime, simulatedTime;
-  Initialize(dim,n_iter);
-  Push(currentTime, x, theta);
-
-  int i0;
-  int switches = 0;
-  int iteration = 0;
-  while (iteration < n_iter || currentTime < finalTime) {
-    ++iteration;
-    for (int i = 0; i < dim; ++i) {
-      simulatedTime = rexp(1, upperbound(i))(0);
-      if (i == 0 || simulatedTime < minTime) {
-        i0 = i;
-        minTime = simulatedTime;
-      }
-    }
-    currentTime = currentTime + minTime;
-    x = x + minTime * theta;
-    double derivative = logisticData.subsampledDerivative(x, i0);
-    double V = runif(1)(0);
-    if (derivative > upperbound(i0)) {
-      Rprintf("LogisticSubsamplingZZ:: Error: derivative larger than its supposed upper bound.\n");
-      Rprintf("  Upper bound: %g, actual derivative: %g.\n", upperbound(i0), derivative);
-      Rprintf("  Index: %d, X(0): %g, X(1): %g\n", i0, x(0), x(1));
-      break;
-    }
-    if (V <= theta(i0) * derivative/upperbound(i0)) {
-      theta(i0) = -theta(i0);
-      ++switches;
-      Push(currentTime, x, theta);
-    }
-  }
-  ShrinkToCurrentSize();
-  Rprintf("LogisticSubSampling: Fraction of accepted switches: %g\n", double(switches)/iteration);
+  const LogisticData logisticData(&dataX, &dataY);
+  ConstantBound constantBound(logisticData.getConstantBoundObject());
+  ZigZag(logisticData, constantBound, x0, v0, n_iter, finalTime);
 }
 
-void Skeleton::LogisticCVZZ(const MatrixXd& dataX, const VectorXi& dataY, const int n_iter, const double finalTime, const VectorXd& x0) {
-  
-  LogisticData data(dataX, dataY);
-  const int dim = dataX.rows();
-  const int n_observations = dataX.cols();
-  const double precision = 1e-10;
-  const int max_iter = 1e2;
-  mode = VectorXd::Zero(dim);
-  newtonLogistic(data, mode, precision, max_iter);
-  VectorXd x(x0);
-  if (x.rows()==0)
-    x = mode;
-  
-  VectorXd theta(VectorXd::Constant(dim,1)); // initialize theta at (+1,...,+1)
-  double currentTime = 0;
-  const VectorXd uniformBound(cvBound(dataX) * n_observations);
-  const VectorXd b(sqrt((double)dim) * uniformBound);
-  VectorXd a((x-mode).norm() * uniformBound);
-  
-  RNGScope scp; // initialize random number generator
-  
-  double minTime, simulatedTime;
-  Initialize(dim, n_iter);
-  Push(currentTime, x, theta);
 
-  int i0;
-  int switches = 0;
-  int iteration = 0;
-  while (iteration < n_iter || currentTime < finalTime) {
-    ++iteration;
-    NumericVector U(runif(dim));
-    i0 = -1;
-    for (int i = 0; i < dim; ++i) {
-      simulatedTime = getRandomTime(a(i), b(i), U(i));
-      if (simulatedTime > 0 && (i0 == -1 || simulatedTime < minTime)) {
-        i0 = i;
-        minTime = simulatedTime;
-      }
-    }
-    if (minTime < 0) {
-      // this means that we simulated T = inf
-      stop("Zig zag wandered off to infinity.");
-    }
-    else {
-      currentTime = currentTime + minTime;
-      x = x + minTime * theta;
-      // TODO implement subsampling with control variates using logisticData object
-      int J = floor(n_observations*runif(1)(0)); // randomly select observation
-      double switch_rate = theta(i0) * n_observations * dataX(i0,J) * (1.0/(1.0+exp(-dataX.col(J).dot(x)))-1.0/(1.0+exp(-dataX.col(J).dot(mode))));
-      double simulated_rate = a(i0) + b(i0) * minTime;
-      if (switch_rate > simulated_rate) {
-        stop("LogisticCVZZ:: Error: switch rate larger than its supposed upper bound.");
-        break;
-      }
-      double V = runif(1)(0);
-      if (V <= switch_rate/simulated_rate) {
-        theta(i0)=-theta(i0);
-        ++switches;
-        Push(currentTime, x, theta, finalTime);
-      }
-      a = (x-mode).norm() * uniformBound;
-    }
-  }
-  ShrinkToCurrentSize();
-  Rprintf("LogisticCVZZ: Fraction of accepted switches: %g\n", double(switches)/iteration);
+void Skeleton::LogisticSubsamplingZZ(const MatrixXd& dataX, const VectorXi& dataY, const int n_iter, const double finalTime, const VectorXd& x0, const VectorXd& v0) {
+  
+  const LogisticDataForSubsampling logisticData(&dataX, &dataY);
+  ConstantBound constantBound(logisticData.getConstantBoundObject());
+  ZigZag(logisticData, constantBound, x0, v0, n_iter, finalTime);
+}
+
+void Skeleton::LogisticCVZZ(const MatrixXd& dataX, const VectorXi& dataY, const int n_iter, const double finalTime, VectorXd& x0, const VectorXd& v0, VectorXd x_ref) {
+  
+  LogisticDataForSubsampling logisticData(&dataX, &dataY);
+  CVBound cvBound = logisticData.getCVBoundObject(x0, v0, x_ref);
+
+  ZigZag(logisticData, cvBound, x0, v0, n_iter, finalTime);
 }
 
 void Skeleton::GaussianZZ(const MatrixXd& V, const VectorXd& mu, const int n_iter, const double finalTime, const VectorXd& x0) {
@@ -569,6 +446,8 @@ List Skeleton::toR() {
 void Skeleton::sample(const int n_samples) {
   
   const int n_steps = Times.size();
+  if (n_steps < 2)
+    stop("Skeleton::sample: skeleton size < 2.");
   const int dim = Points.rows();
   const double t_max = Times(n_steps-1);
   const double dt = t_max / (n_samples+1);
@@ -638,27 +517,35 @@ void Skeleton::sample(const int n_samples) {
 //' points(result$samples[1,], result$samples[2,], col='magenta')
 //' @export
 // [[Rcpp::export]]
-List ZigZagLogistic(const Eigen::MatrixXd dataX, const Eigen::VectorXi dataY, int n_iterations, const NumericVector x0 = NumericVector(0), const double finalTime = -1, const bool subsampling = true, const bool controlvariates = true, const int n_samples = 0, const int n_batches = 0, const bool computeCovariance = false, const bool upperbound = false) {
+List ZigZagLogistic(const Eigen::MatrixXd dataX, const Eigen::VectorXi dataY, int n_iterations, const NumericVector x0 = NumericVector(0), const double finalTime = -1, const bool subsampling = true, const bool controlvariates = true, const int n_samples = 0, const int n_batches = 0, const bool computeCovariance = false, const bool upperbound = false, const NumericVector v0 = NumericVector(0), const NumericVector x_ref = NumericVector(0)) {
   
   const int dim = dataX.rows();
   VectorXd x(dim);
+  VectorXd v(dim);
   if (x0.size() < dim)
     x = VectorXd::Zero(dim);
   else
     for (int i = 0; i < dim; ++i)
       x[i] = x0[i];
+  
+  if (v0.size() < dim)
+    v = VectorXd::Ones(dim);
+  else
+    for (int i = 0; i < dim; ++i)
+      v[i] = v0[i];
+  
   Skeleton skeleton;
   if (finalTime >= 0)
     n_iterations = -1;
 
   if (upperbound)
-    skeleton.LogisticUpperboundZZ(dataX, dataY, n_iterations, finalTime, x);
+    skeleton.LogisticUpperboundZZ(dataX, dataY, n_iterations, finalTime, x, v);
   else if (controlvariates) 
-    skeleton.LogisticCVZZ(dataX, dataY, n_iterations, finalTime, x);
-  else if (subsampling && !controlvariates) 
-    skeleton.LogisticSubsamplingZZ(dataX, dataY, n_iterations, finalTime, x);
+    skeleton.LogisticCVZZ(dataX, dataY, n_iterations, finalTime, x, v, as<Eigen::Map<Eigen::VectorXd> >(x_ref));
+  else if (subsampling && !controlvariates)  
+    skeleton.LogisticSubsamplingZZ(dataX, dataY, n_iterations, finalTime, x, v);
   else 
-    skeleton.LogisticBasicZZ(dataX, dataY, n_iterations, finalTime, x);
+    skeleton.LogisticBasicZZ(dataX, dataY, n_iterations, finalTime, x, v);
   
   if (n_samples > 0)
     skeleton.sample(n_samples);

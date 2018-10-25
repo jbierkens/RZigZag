@@ -37,21 +37,37 @@ VectorXd cvBound(const MatrixXd& dataX);
 // TODO
 // MatrixXd LogisticMALA(const MatrixXd& dataX, const VectorXi& dataY, const int n_epochs, const VectorXd& beta0, const double stepsize);
 
-
 class LogisticData : public DataObject {
 public:
-  LogisticData(const MatrixXd& dataX, const VectorXi& dataY);
-  double potential(const VectorXd& beta) const;
-  VectorXd gradient(const VectorXd& beta) const;
-  MatrixXd hessian(const VectorXd& beta) const;
+  LogisticData(const MatrixXd* dataXptr, const VectorXi* dataYptr) : dataXptr{dataXptr}, dataYptr{dataYptr}, dim{dataXptr->rows()}, n_observations{dataXptr->cols()} {};
+  double potential(const VectorXd& position) const;
+  VectorXd gradient(const VectorXd& position) const;
+  MatrixXd hessian(const VectorXd& position) const;
   double getDerivative(const VectorXd& position, const int index) const;
-  double subsampledDerivative(const VectorXd& position, const int index) const;
-private:
-  int dim, n_observations;
-  const MatrixXd dataX;
-  const VectorXi dataY;
+  AffineBound getAffineBoundObject(const VectorXd& position, const VectorXd& direction) const;
+  ConstantBound getConstantBoundObject() const;
+  VectorXd newtonLogistic(VectorXd& position, double precision, const int max_iter);
+  int getDim() const { return dim;};
+  MatrixXd dominatingHessian() const;
+  VectorXd computeUniformBound() const;
+
+protected:
+  const Eigen::Index dim, n_observations;
+  const MatrixXd* dataXptr;
+  const VectorXi* dataYptr;
 };
 
-double newtonLogistic(const LogisticData& data, VectorXd& beta, double precision, const int max_iter);
+class LogisticDataForSubsampling : public LogisticData
+{
+public:
+  LogisticDataForSubsampling(const MatrixXd* dataXptr, const VectorXi* dataYptr) : LogisticData(dataXptr, dataYptr) {};
+  double getDerivative(const VectorXd& position, const int index) const;
+  CVBound getCVBoundObject(VectorXd& position, const VectorXd& direction, VectorXd& x_ref);
+private:
+  void setReference(const VectorXd& xr, const VectorXd& gr) { x_ref = xr; grad_ref = gr;};
+  VectorXd x_ref, grad_ref;
+};
+
+
 
 #endif

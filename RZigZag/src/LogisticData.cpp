@@ -19,16 +19,11 @@
 
 #include "LogisticData.h"
 
-LogisticData::LogisticData(const MatrixXd& dataX, const VectorXi& dataY) : dataX(dataX), dataY(dataY) {
-  dim = dataX.rows();
-  n_observations = dataX.cols();
-}
-
 double LogisticData::potential(const VectorXd& beta) const {
   double val = 0;
   for (int j = 0; j < n_observations; ++j) {
-    double innerproduct = beta.dot(dataX.col(j));
-    val += log(1 + exp(innerproduct)) - dataY(j) * innerproduct;
+    double innerproduct = beta.dot(dataXptr->col(j));
+    val += log(1 + exp(innerproduct)) - (*dataYptr)(j) * innerproduct;
   }
   return val;
 }
@@ -36,8 +31,8 @@ double LogisticData::potential(const VectorXd& beta) const {
 VectorXd LogisticData::gradient(const VectorXd& beta) const {
   VectorXd grad(VectorXd::Zero(dim));
   for (int j = 0; j < n_observations; ++j) {
-    double val = exp(dataX.col(j).dot(beta));
-    grad += dataX.col(j) * (val/(1+val) - dataY(j));
+    double val = exp(dataXptr->col(j).dot(beta));
+    grad += dataXptr->col(j) * (val/(1+val) - (*dataYptr)(j));
   }
   return grad;
 }
@@ -45,8 +40,8 @@ VectorXd LogisticData::gradient(const VectorXd& beta) const {
 MatrixXd LogisticData::hessian(const VectorXd& beta) const {
   MatrixXd hess(MatrixXd::Zero(dim,dim));
   for (int j = 0; j < n_observations; ++j) {
-    double innerproduct = beta.dot(dataX.col(j));
-    hess += (dataX.col(j) * dataX.col(j).transpose())* exp(innerproduct)/((1+exp(innerproduct)*(1+exp(innerproduct))));
+    double innerproduct = beta.dot(dataXptr->col(j));
+    hess += (dataXptr->col(j) * dataXptr->col(j).transpose())* exp(innerproduct)/((1+exp(innerproduct)*(1+exp(innerproduct))));
   }
   return hess;
 }
@@ -55,19 +50,62 @@ double LogisticData::getDerivative(const VectorXd& position, const int index) co
   
   double derivative = 0;
   for (int j = 0; j < n_observations; ++j) {
-    double val = exp(dataX.col(j).dot(position));
-    derivative += dataX(index,j) * (val/(1+val) - dataY(j));
+    double val = exp(dataXptr->col(j).dot(position));
+    derivative += (*dataXptr)(index,j) * (val/(1+val) - (*dataYptr)(j));
   }
   return derivative;
 }
 
+AffineBound LogisticData::getAffineBoundObject(const VectorXd& x, const VectorXd& v) const {
+  
+  const MatrixXd Q(dominatingHessian());
+  const VectorXd b(sqrt(dim) * Q.rowwise().norm());
+  VectorXd a(dim);
+  for (int k = 0; k < dim; ++k) 
+    a(k) = v(k) * getDerivative(x, k);
+  return AffineBound(a, b);
+}
 
-double LogisticData::subsampledDerivative(const VectorXd& position, const int index) const {
+ConstantBound LogisticData::getConstantBoundObject() const {
+  
+  return ConstantBound(n_observations * dataXptr->array().abs().rowwise().maxCoeff());
+}
+
+double LogisticDataForSubsampling::getDerivative(const VectorXd& position, const int index) const {
 
   int J = floor(n_observations*runif(1)(0)); // randomly select observation
-  return n_observations * dataX(index,J) * (1.0/(1.0+exp(-dataX.col(J).dot(position))) - dataY(J));
-  
+  if (x_ref.rows() == 0)
+    return n_observations * (*dataXptr)(index,J) * (1.0/(1.0+exp(-dataXptr->col(J).dot(position))) - (*dataYptr)(J));
+  else {
+    return grad_ref(index) + n_observations * (*dataXptr)(index,J) * (1.0/(1.0+exp(-dataXptr->col(J).dot(position))) -  1.0/(1.0+exp(-dataXptr->col(J).dot(x_ref))));
+  }
 }
+
+CVBound LogisticDataForSubsampling::getCVBoundObject(VectorXd& x, const VectorXd& v, VectorXd& x_ref) {
+  
+  VectorXd grad_ref;
+  if (x_ref.rows() == 0) {
+    const double precision = 1e-10;
+    const int max_iter = 1e2;
+    grad_ref = newtonLogistic(x_ref, precision, max_iter);
+  }
+  else {
+    grad_ref = gradient(x_ref);
+  }
+  setReference(x_ref, grad_ref);
+
+  if (x.rows()==0)
+    x = x_ref;
+
+  const VectorXd uniformBound(computeUniformBound());
+  const VectorXd b = sqrt(getDim()) * uniformBound;
+  // VectorXd a_ref = (v.cwiseProduct(grad_ref)).unaryExpr(&pospart);
+  // VectorXd a = (x-x_ref).norm() * uniformBound + a_ref;
+  // Rprintf("a: (%g, %g)\n", a[1], a[2]);
+  // Rprintf("b: (%g, %g)\n", b[1], b[2]);
+  return CVBound(b,uniformBound,x_ref,grad_ref, x, v);
+}
+
 
 // MatrixXd preprocessLogistic(const MatrixXd& dataX) {
 //   const int n_observations = dataX.cols();
@@ -83,55 +121,50 @@ double LogisticData::subsampledDerivative(const VectorXd& position, const int in
 //   return dataXpp;
 // }
 
-MatrixXd domHessianLogistic(const MatrixXd& dataX) {
-  const int n_observations = dataX.cols();
-  const int dim = dataX.rows();
+MatrixXd LogisticData::dominatingHessian() const {
+  const int n_observations = dataXptr->cols();
+  const int dim = dataXptr->rows();
   
   MatrixXd domHessian(MatrixXd::Zero(dim,dim));
   for (int j = 0; j < n_observations; ++j) {
-    domHessian += 0.25 * (dataX.col(j) * dataX.col(j).transpose());
+    domHessian += 0.25 * (dataXptr->col(j) * dataXptr->col(j).transpose());
   }
   return domHessian;
 }
 
 
-VectorXd cvBound(const MatrixXd& dataX) {
-  const int dim = dataX.rows();
-  const int n_observations = dataX.cols();
-  const VectorXd norms (dataX.colwise().norm());
+VectorXd LogisticData::computeUniformBound() const {
+  const VectorXd norms (dataXptr->colwise().norm());
   VectorXd bounds(dim);
   
-  for (int k =0; k < dim; ++k) {
+  for (int k = 0; k < dim; ++k) {
     bounds(k) = 0.0;
     for (int l = 0; l < n_observations; ++l) {
-      double val = fabs(dataX(k,l) * norms(l));
+      double val = fabs((*dataXptr)(k,l) * norms(l));
       if (bounds(k) < val)
         bounds(k) = val;
     }
   }
-  return 0.25 * bounds;
+  return 0.25 * bounds * n_observations;
 }
 
-
-VectorXd logisticUpperbound(const MatrixXd& dataX) {
-  return dataX.array().abs().rowwise().maxCoeff();
-}
-
-double newtonLogistic(const LogisticData& data, VectorXd& beta, double precision, const int max_iter) {
-  VectorXd grad(data.gradient(beta));
+VectorXd LogisticData::newtonLogistic(VectorXd& x, double precision, const int max_iter) {
+  if (x.size() != getDim())
+    x = VectorXd::Ones(getDim());
+  VectorXd grad(gradient(x));
   int i = 0;
   for (i = 0; i < max_iter; ++i) {
     if (grad.norm() < precision)
       break;
-    MatrixXd H(data.hessian(beta));
-    beta -= H.ldlt().solve(grad);
-    grad = data.gradient(beta);
+    MatrixXd H(hessian(x));
+    x -= H.ldlt().solve(grad);
+    grad = gradient(x);
   }
   if (i == max_iter) {
-    stop("newtonLogistic: Maximum number of iterations reached without convergence in Newton's method in computing control variate.");
+    warning("LogisticData::newtonLogistic: Maximum number of iterations reached without convergence in Newton's method in computing control variate.");
   }
   else
-    Rprintf("newtonLogistic: Converged to local minimum in %d iterations.\n", i);
-  return data.potential(beta);
+    Rprintf("LogisticData::newtonLogistic: Converged to local minimum in %d iterations.\n", i);
+  return grad;
 }
 

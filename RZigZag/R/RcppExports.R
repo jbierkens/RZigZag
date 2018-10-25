@@ -44,8 +44,8 @@
 #' plot(result$skeletonPoints[1,], result$skeletonPoints[2,],type='l',asp=1)
 #' points(result$samples[1,], result$samples[2,], col='magenta')
 #' @export
-ZigZagLogistic <- function(dataX, dataY, n_iterations, x0 = numeric(0), finalTime = -1, subsampling = TRUE, controlvariates = TRUE, n_samples = 0L, n_batches = 0L, computeCovariance = FALSE, upperbound = FALSE) {
-    .Call('_RZigZag_ZigZagLogistic', PACKAGE = 'RZigZag', dataX, dataY, n_iterations, x0, finalTime, subsampling, controlvariates, n_samples, n_batches, computeCovariance, upperbound)
+ZigZagLogistic <- function(dataX, dataY, n_iterations, x0 = numeric(0), finalTime = -1, subsampling = TRUE, controlvariates = TRUE, n_samples = 0L, n_batches = 0L, computeCovariance = FALSE, upperbound = FALSE, v0 = numeric(0), x_ref = numeric(0)) {
+    .Call('_RZigZag_ZigZagLogistic', PACKAGE = 'RZigZag', dataX, dataY, n_iterations, x0, finalTime, subsampling, controlvariates, n_samples, n_batches, computeCovariance, upperbound, v0, x_ref)
 }
 
 #' ZigZagGaussian

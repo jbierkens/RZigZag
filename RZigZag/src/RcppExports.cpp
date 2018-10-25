@@ -7,8 +7,8 @@
 using namespace Rcpp;
 
 // ZigZagLogistic
-List ZigZagLogistic(const Eigen::MatrixXd dataX, const Eigen::VectorXi dataY, int n_iterations, const NumericVector x0, const double finalTime, const bool subsampling, const bool controlvariates, const int n_samples, const int n_batches, const bool computeCovariance, const bool upperbound);
-RcppExport SEXP _RZigZag_ZigZagLogistic(SEXP dataXSEXP, SEXP dataYSEXP, SEXP n_iterationsSEXP, SEXP x0SEXP, SEXP finalTimeSEXP, SEXP subsamplingSEXP, SEXP controlvariatesSEXP, SEXP n_samplesSEXP, SEXP n_batchesSEXP, SEXP computeCovarianceSEXP, SEXP upperboundSEXP) {
+List ZigZagLogistic(const Eigen::MatrixXd dataX, const Eigen::VectorXi dataY, int n_iterations, const NumericVector x0, const double finalTime, const bool subsampling, const bool controlvariates, const int n_samples, const int n_batches, const bool computeCovariance, const bool upperbound, const NumericVector v0, const NumericVector x_ref);
+RcppExport SEXP _RZigZag_ZigZagLogistic(SEXP dataXSEXP, SEXP dataYSEXP, SEXP n_iterationsSEXP, SEXP x0SEXP, SEXP finalTimeSEXP, SEXP subsamplingSEXP, SEXP controlvariatesSEXP, SEXP n_samplesSEXP, SEXP n_batchesSEXP, SEXP computeCovarianceSEXP, SEXP upperboundSEXP, SEXP v0SEXP, SEXP x_refSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -23,7 +23,9 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const int >::type n_batches(n_batchesSEXP);
     Rcpp::traits::input_parameter< const bool >::type computeCovariance(computeCovarianceSEXP);
     Rcpp::traits::input_parameter< const bool >::type upperbound(upperboundSEXP);
-    rcpp_result_gen = Rcpp::wrap(ZigZagLogistic(dataX, dataY, n_iterations, x0, finalTime, subsampling, controlvariates, n_samples, n_batches, computeCovariance, upperbound));
+    Rcpp::traits::input_parameter< const NumericVector >::type v0(v0SEXP);
+    Rcpp::traits::input_parameter< const NumericVector >::type x_ref(x_refSEXP);
+    rcpp_result_gen = Rcpp::wrap(ZigZagLogistic(dataX, dataY, n_iterations, x0, finalTime, subsampling, controlvariates, n_samples, n_batches, computeCovariance, upperbound, v0, x_ref));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -67,7 +69,7 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_RZigZag_ZigZagLogistic", (DL_FUNC) &_RZigZag_ZigZagLogistic, 11},
+    {"_RZigZag_ZigZagLogistic", (DL_FUNC) &_RZigZag_ZigZagLogistic, 13},
     {"_RZigZag_ZigZagGaussian", (DL_FUNC) &_RZigZag_ZigZagGaussian, 8},
     {"_RZigZag_BPSGaussian", (DL_FUNC) &_RZigZag_BPSGaussian, 10},
     {NULL, NULL, 0}
