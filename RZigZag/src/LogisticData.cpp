@@ -19,29 +19,29 @@
 
 #include "LogisticData.h"
 
-double LogisticData::potential(const VectorXd& beta) const {
+double LogisticData::potential(const VectorXd& position) const {
   double val = 0;
   for (int j = 0; j < n_observations; ++j) {
-    double innerproduct = beta.dot(dataXptr->col(j));
+    double innerproduct = position.dot(dataXptr->row(j));
     val += log(1 + exp(innerproduct)) - (*dataYptr)(j) * innerproduct;
   }
   return val;
 }
 
-VectorXd LogisticData::gradient(const VectorXd& beta) const {
+VectorXd LogisticData::gradient(const VectorXd& position) const {
   VectorXd grad(VectorXd::Zero(dim));
   for (int j = 0; j < n_observations; ++j) {
-    double val = exp(dataXptr->col(j).dot(beta));
-    grad += dataXptr->col(j) * (val/(1+val) - (*dataYptr)(j));
+    double val = exp(dataXptr->row(j).dot(position));
+    grad += dataXptr->row(j).transpose() * (val/(1+val) - (*dataYptr)(j));
   }
   return grad;
 }
 
-MatrixXd LogisticData::hessian(const VectorXd& beta) const {
+MatrixXd LogisticData::hessian(const VectorXd& position) const {
   MatrixXd hess(MatrixXd::Zero(dim,dim));
   for (int j = 0; j < n_observations; ++j) {
-    double innerproduct = beta.dot(dataXptr->col(j));
-    hess += (dataXptr->col(j) * dataXptr->col(j).transpose())* exp(innerproduct)/((1+exp(innerproduct)*(1+exp(innerproduct))));
+    double innerproduct = position.dot(dataXptr->row(j));
+    hess += (dataXptr->row(j).transpose() * dataXptr->row(j))* exp(innerproduct)/((1+exp(innerproduct)*(1+exp(innerproduct))));
   }
   return hess;
 }
@@ -50,8 +50,8 @@ double LogisticData::getDerivative(const VectorXd& position, const int index) co
   
   double derivative = 0;
   for (int j = 0; j < n_observations; ++j) {
-    double val = exp(dataXptr->col(j).dot(position));
-    derivative += (*dataXptr)(index,j) * (val/(1+val) - (*dataYptr)(j));
+    double val = exp(dataXptr->row(j).dot(position));
+    derivative += (*dataXptr)(j,index) * (val/(1+val) - (*dataYptr)(j));
   }
   return derivative;
 }
@@ -68,16 +68,16 @@ AffineBound LogisticData::getAffineBoundObject(const VectorXd& x, const VectorXd
 
 ConstantBound LogisticData::getConstantBoundObject() const {
   
-  return ConstantBound(n_observations * dataXptr->array().abs().rowwise().maxCoeff());
+  return ConstantBound(n_observations * dataXptr->array().abs().colwise().maxCoeff());
 }
 
 double LogisticDataForSubsampling::getDerivative(const VectorXd& position, const int index) const {
 
   int J = floor(n_observations*runif(1)(0)); // randomly select observation
   if (x_ref.rows() == 0)
-    return n_observations * (*dataXptr)(index,J) * (1.0/(1.0+exp(-dataXptr->col(J).dot(position))) - (*dataYptr)(J));
+    return n_observations * (*dataXptr)(J,index) * (1.0/(1.0+exp(-dataXptr->row(J).dot(position))) - (*dataYptr)(J));
   else {
-    return grad_ref(index) + n_observations * (*dataXptr)(index,J) * (1.0/(1.0+exp(-dataXptr->col(J).dot(position))) -  1.0/(1.0+exp(-dataXptr->col(J).dot(x_ref))));
+    return grad_ref(index) + n_observations * (*dataXptr)(J,index) * (1.0/(1.0+exp(-dataXptr->row(J).dot(position))) -  1.0/(1.0+exp(-dataXptr->row(J).dot(x_ref))));
   }
 }
 
@@ -125,25 +125,23 @@ CVBound LogisticDataForSubsampling::getCVBoundObject(const VectorXd& x, const Ve
 // }
 
 MatrixXd LogisticData::dominatingHessian() const {
-  const int n_observations = dataXptr->cols();
-  const int dim = dataXptr->rows();
-  
+
   MatrixXd domHessian(MatrixXd::Zero(dim,dim));
   for (int j = 0; j < n_observations; ++j) {
-    domHessian += 0.25 * (dataXptr->col(j) * dataXptr->col(j).transpose());
+    domHessian += 0.25 * (dataXptr->row(j).transpose() * dataXptr->row(j));
   }
   return domHessian;
 }
 
 
 VectorXd LogisticData::computeUniformBound() const {
-  const VectorXd norms (dataXptr->colwise().norm());
+  const VectorXd norms (dataXptr->rowwise().norm());
   VectorXd bounds(dim);
   
   for (int k = 0; k < dim; ++k) {
     bounds(k) = 0.0;
     for (int l = 0; l < n_observations; ++l) {
-      double val = fabs((*dataXptr)(k,l) * norms(l));
+      double val = fabs((*dataXptr)(l,k) * norms(l));
       if (bounds(k) < val)
         bounds(k) = val;
     }

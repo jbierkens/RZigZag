@@ -7,16 +7,16 @@
 ZigZagLogistic(dataX, dataY, n_iterations, x0 = numeric(0),
   finalTime = -1, subsampling = TRUE, controlvariates = TRUE,
   n_samples = 0L, n_batches = 0L, computeCovariance = FALSE,
-  upperbound = FALSE)
+  upperbound = FALSE, v0 = numeric(0), x_ref = numeric(0))
 }
 \arguments{
-\item{dataX}{Matrix containing the independent variables x. The i-th column represents the i-th observation with components x_{1,i}, ..., x_{d,i}.}
+\item{dataX}{Design matrix containing observations of the independent variables x. The i-th row represents the i-th observation with components x_{i,1}, ..., x_{i,d}.}
 
 \item{dataY}{Vector of length n containing {0, 1}-valued observations of the dependent variable y.}
 
 \item{n_iterations}{Integer indicating the number of iterations, i.e. the number of proposed switches.}
 
-\item{x0}{Optional argument indicating the starting point for the Zig-Zag sampler}
+\item{x0}{starting point (optional, if not specified taken to be the origin)}
 
 \item{finalTime}{If provided and nonnegative, run the sampler until a trajectory of continuous time length finalTime is obtained (ignoring the value of \code{n_iterations})}
 
@@ -31,6 +31,10 @@ ZigZagLogistic(dataX, dataY, n_iterations, x0 = numeric(0),
 \item{computeCovariance}{Boolean indicating whether to estimate the covariance matrix.}
 
 \item{upperbound}{Boolean. If TRUE, sample without subsampling and using a constant upper bound instead of a linear Hessian dependent upper bound}
+
+\item{v0}{starting direction (optional, if not specified taken to be +1 in every component)}
+
+\item{x_ref}{vector indicating a reference point in space on which to base the control variates approach. If not specified, taken to be the mode (determined by numerical optimization)}
 }
 \value{
 Returns a list with the following objects:
@@ -60,18 +64,19 @@ Applies the Zig-Zag Sampler to logistic regression, as detailed in Bierkens, Fea
 }
 \examples{
 require("RZigZag")
+
 generate.logistic.data <- function(beta, n.obs) {
   dim <- length(beta)
-  dataX <- rbind(rep(1, n.obs), matrix(rnorm((dim -1) * n.obs), nrow = dim -1));
-  vals <- colSums(dataX * as.vector(beta))
-  generateY <- function(p) { rbinom(1, 1, p)}
+  dataX <- cbind(rep(1.0,n.obs), matrix(rnorm((dim -1) * n.obs), ncol = dim -1));
+  vals <- dataX \%*\% as.vector(beta)
+    generateY <- function(p) { rbinom(1, 1, p)}
   dataY <- sapply(1/(1 + exp(-vals)), generateY)
-  return(list(dataX, dataY))
+    return(list(dataX = dataX, dataY = dataY))
 }
 
 beta <- c(1,2)
 data <- generate.logistic.data(beta, 1000)
-result <- ZigZagLogistic(data[[1]], data[[2]], 1000, n_samples = 100)
+result <- ZigZagLogistic(data$dataX, data$dataY, 1000, n_samples = 100)
 plot(result$skeletonPoints[1,], result$skeletonPoints[2,],type='l',asp=1)
 points(result$samples[1,], result$samples[2,], col='magenta')
 }

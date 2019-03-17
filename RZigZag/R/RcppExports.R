@@ -5,13 +5,15 @@
 #' 
 #' Applies the Zig-Zag Sampler to logistic regression, as detailed in Bierkens, Fearnhead, Roberts, The Zig-Zag Process and Super-Efficient Sampling for Bayesian Analysis of Big Data, 2016.
 #'
-#' @param dataX Matrix containing the independent variables x. The i-th column represents the i-th observation with components x_{1,i}, ..., x_{d,i}.
+#' @param dataX Design matrix containing observations of the independent variables x. The i-th row represents the i-th observation with components x_{i,1}, ..., x_{i,d}.
 #' @param dataY Vector of length n containing {0, 1}-valued observations of the dependent variable y.
 #' @param n_iterations Integer indicating the number of iterations, i.e. the number of proposed switches.
-#' @param x0 Optional argument indicating the starting point for the Zig-Zag sampler
+#' @param x0 starting point (optional, if not specified taken to be the origin)
+#' @param v0 starting direction (optional, if not specified taken to be +1 in every component)
 #' @param finalTime If provided and nonnegative, run the sampler until a trajectory of continuous time length finalTime is obtained (ignoring the value of \code{n_iterations})
 #' @param subsampling Boolean. Use Zig-Zag with subsampling if TRUE. 
 #' @param controlvariates Boolean. Use Zig-Zag with subsampling combined with control variates if TRUE (overriding any value of \code{subsampling}).
+#' @param x_ref vector indicating a reference point in space on which to base the control variates approach. If not specified, taken to be the mode (determined by numerical optimization)
 #' @param n_samples Number of discrete time samples to extract from the Zig-Zag skeleton.
 #' @param n_batches If non-zero, estimate effective sample size through the batch means method, with n_batches number of batches.
 #' @param computeCovariance Boolean indicating whether to estimate the covariance matrix.
@@ -29,18 +31,19 @@
 #' @return \code{ESS}: If \code{n_batches > 0} this is an estimate of the effective sample size along each component
 #' @examples
 #' require("RZigZag")
+#'
 #' generate.logistic.data <- function(beta, n.obs) {
 #'   dim <- length(beta)
-#'   dataX <- rbind(rep(1, n.obs), matrix(rnorm((dim -1) * n.obs), nrow = dim -1));
-#'   vals <- colSums(dataX * as.vector(beta))
-#'   generateY <- function(p) { rbinom(1, 1, p)}
+#'   dataX <- cbind(rep(1.0,n.obs), matrix(rnorm((dim -1) * n.obs), ncol = dim -1));
+#'   vals <- dataX %*% as.vector(beta)
+#'     generateY <- function(p) { rbinom(1, 1, p)}
 #'   dataY <- sapply(1/(1 + exp(-vals)), generateY)
-#'   return(list(dataX, dataY))
+#'     return(list(dataX = dataX, dataY = dataY))
 #' }
 #'
 #' beta <- c(1,2)
 #' data <- generate.logistic.data(beta, 1000)
-#' result <- ZigZagLogistic(data[[1]], data[[2]], 1000, n_samples = 100)
+#' result <- ZigZagLogistic(data$dataX, data$dataY, 1000, n_samples = 100)
 #' plot(result$skeletonPoints[1,], result$skeletonPoints[2,],type='l',asp=1)
 #' points(result$samples[1,], result$samples[2,], col='magenta')
 #' @export
@@ -56,7 +59,8 @@ ZigZagLogistic <- function(dataX, dataY, n_iterations, x0 = numeric(0), finalTim
 #' @param V the inverse covariance matrix (or precision matrix) of the Gaussian target distribution; if V is a matrix consisting of a single column, it is interpreted as the diagonal of the precision matrix.//' @param mu mean of the Gaussian target distribution
 #' @param mu mean of the Gaussian target distribution
 #' @param n_iterations Number of algorithm iterations; will result in the equivalent amount of skeleton points in Gaussian case because no rejections are needed.
-#' @param x0 starting point
+#' @param x0 starting point (optional, if not specified taken to be the origin)
+#' @param v0 starting direction (optional, if not specified taken to be +1 in every component)
 #' @param finalTime If provided and nonnegative, run the sampler until a trajectory of continuous time length finalTime is obtained (ignoring the value of \code{n_iterations})
 #' @param n_samples Number of discrete time samples to extract from the Zig-Zag skeleton.
 #' @param n_batches If non-zero, estimate effective sample size through the batch means method, with n_batches number of batches.
@@ -75,19 +79,17 @@ ZigZagLogistic <- function(dataX, dataY, n_iterations, x0 = numeric(0), finalTim
 #' @examples
 #' V <- matrix(c(3,1,1,3),nrow=2)
 #' mu <- c(2,2)
-#' x0 <- c(0,0)
-#' result <- ZigZagGaussian(V, mu, 100, x0, n_samples = 10)
+#' result <- ZigZagGaussian(V, mu, 100, n_samples = 10)
 #' plot(result$skeletonPoints[1,], result$skeletonPoints[2,],type='l',asp=1)
 #' points(result$samples[1,], result$samples[2,], col='magenta')
 #' 
 #' V <- matrix(rep(1,100),nrow=100)
 #' mu <- numeric(100)
-#' x0 <- numeric(100)
-#' result <- ZigZagGaussian(V, mu, 1000, x0, n_samples = 10)
+#' result <- ZigZagGaussian(V, mu, 1000, n_samples = 10)
 #' plot(result$skeletonPoints[1,], result$skeletonPoints[2,],type='l',asp=1)
 #' points(result$samples[1,], result$samples[2,], col='magenta')
 #' @export
-ZigZagGaussian <- function(V, mu, n_iterations, x0, finalTime = -1, n_samples = 0L, n_batches = 0L, computeCovariance = FALSE, v0 = numeric(0)) {
+ZigZagGaussian <- function(V, mu, n_iterations, x0 = numeric(0), finalTime = -1, n_samples = 0L, n_batches = 0L, computeCovariance = FALSE, v0 = numeric(0)) {
     .Call('_RZigZag_ZigZagGaussian', PACKAGE = 'RZigZag', V, mu, n_iterations, x0, finalTime, n_samples, n_batches, computeCovariance, v0)
 }
 

@@ -4,8 +4,9 @@
 \alias{ZigZagGaussian}
 \title{ZigZagGaussian}
 \usage{
-ZigZagGaussian(V, mu, n_iterations, x0, finalTime = -1, n_samples = 0L,
-  n_batches = 0L, computeCovariance = FALSE)
+ZigZagGaussian(V, mu, n_iterations, x0 = numeric(0), finalTime = -1,
+  n_samples = 0L, n_batches = 0L, computeCovariance = FALSE,
+  v0 = numeric(0))
 }
 \arguments{
 \item{V}{the inverse covariance matrix (or precision matrix) of the Gaussian target distribution; if V is a matrix consisting of a single column, it is interpreted as the diagonal of the precision matrix.//' @param mu mean of the Gaussian target distribution}
@@ -14,7 +15,7 @@ ZigZagGaussian(V, mu, n_iterations, x0, finalTime = -1, n_samples = 0L,
 
 \item{n_iterations}{Number of algorithm iterations; will result in the equivalent amount of skeleton points in Gaussian case because no rejections are needed.}
 
-\item{x0}{starting point}
+\item{x0}{starting point (optional, if not specified taken to be the origin)}
 
 \item{finalTime}{If provided and nonnegative, run the sampler until a trajectory of continuous time length finalTime is obtained (ignoring the value of \code{n_iterations})}
 
@@ -23,6 +24,8 @@ ZigZagGaussian(V, mu, n_iterations, x0, finalTime = -1, n_samples = 0L,
 \item{n_batches}{If non-zero, estimate effective sample size through the batch means method, with n_batches number of batches.}
 
 \item{computeCovariance}{Boolean indicating whether to estimate the covariance matrix.}
+
+\item{v0}{starting direction (optional, if not specified taken to be +1 in every component)}
 }
 \value{
 Returns a list with the following objects:
@@ -54,15 +57,13 @@ Assume potential of the form \deqn{U(x) = (x - mu)^T V (x - mu)/2,} i.e. a Gauss
 \examples{
 V <- matrix(c(3,1,1,3),nrow=2)
 mu <- c(2,2)
-x0 <- c(0,0)
-result <- ZigZagGaussian(V, mu, 100, x0, n_samples = 10)
+result <- ZigZagGaussian(V, mu, 100, n_samples = 10)
 plot(result$skeletonPoints[1,], result$skeletonPoints[2,],type='l',asp=1)
 points(result$samples[1,], result$samples[2,], col='magenta')
 
 V <- matrix(rep(1,100),nrow=100)
 mu <- numeric(100)
-x0 <- numeric(100)
-result <- ZigZagGaussian(V, mu, 1000, x0, n_samples = 10)
+result <- ZigZagGaussian(V, mu, 1000, n_samples = 10)
 plot(result$skeletonPoints[1,], result$skeletonPoints[2,],type='l',asp=1)
 points(result$samples[1,], result$samples[2,], col='magenta')
 }

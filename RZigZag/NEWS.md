@@ -11,6 +11,7 @@
 * TODO: rethink memory usage
 
 # RZigZag 0.1.7
+* transposed dataX matrix in logistic regression: now the different rows of dataX represent different observations 
 * allow user to provide starting direction and custom reference points for control variates (ZigZagLogistic)
 * allow for V (Gaussian case) to be column vector containing diagonal of precision matrix
 

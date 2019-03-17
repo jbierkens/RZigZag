@@ -1,4 +1,4 @@
-// LogisticData.h : subroutines for logistic regression
+// LogisticData.h : subroutines for logistic regression using Zig-Zag
 //
 // Copyright (C) 2017--2019 Joris Bierkens
 //
@@ -39,7 +39,7 @@ VectorXd cvBound(const MatrixXd& dataX);
 
 class LogisticData : public DataObject {
 public:
-  LogisticData(const MatrixXd* dataXptr, const VectorXi* dataYptr) : dataXptr{dataXptr}, dataYptr{dataYptr}, dim{dataXptr->rows()}, n_observations{dataXptr->cols()} {};
+  LogisticData(const MatrixXd* dataXptr, const VectorXi* dataYptr) : dataXptr{dataXptr}, dataYptr{dataYptr}, dim{dataXptr->cols()}, n_observations{dataXptr->rows()} {};
   double potential(const VectorXd& position) const;
   VectorXd gradient(const VectorXd& position) const;
   MatrixXd hessian(const VectorXd& position) const;
