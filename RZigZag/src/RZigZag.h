@@ -1,6 +1,6 @@
 // RZigZag.h : implements Zig-Zag and other PDMP samplers
 //
-// Copyright (C) 2017--2018 Joris Bierkens
+// Copyright (C) 2017--2019 Joris Bierkens
 //
 // This file is part of RZigZag.
 //
@@ -36,7 +36,7 @@ class ComputationalBound {
 public:
   virtual void proposeTimeAndUpdateBound(int& index, double& deltaT) = 0;
   virtual void updateBound(const int index, const double partial_derivative, const VectorXd& x, const VectorXd& v) = 0;
-  virtual double getBound(const int index) = 0;
+  virtual double getBound(const int index) const = 0;
 };
 
 class DataObject {
@@ -48,41 +48,46 @@ public:
 
 class AffineBound : public ComputationalBound {
 public:
-  AffineBound(const VectorXd& a, const VectorXd& b): a{a}, b{b} {};
-  // AffineBound() {};
+  AffineBound(VectorXd& a, const VectorXd& b): a(a), b(b) {};
   void proposeTimeAndUpdateBound(int& index, double& deltaT);
   void updateBound(const int index, const double partial_derivative, const VectorXd& x, const VectorXd& v);
-  double getBound(const int index);
+  double getBound(const int index) const;
   
 protected:
   VectorXd a;
   VectorXd b;
 };
 
-class ConstantBound : public AffineBound {
+class ConstantBound : public ComputationalBound {
 public:
-  ConstantBound(const VectorXd& a): AffineBound(a, VectorXd::Zero(a.size())) {};
+  ConstantBound(const VectorXd& a): a(a) {};
+  void proposeTimeAndUpdateBound(int& index, double& deltaT);
   void updateBound(const int index, const double partial_derivative, const VectorXd& x, const VectorXd& v) {};
+  double getBound(const int index) const { return a[index]; };
+  
+private:
+  const VectorXd a;
 };
 
 class CVBound : public AffineBound {
 public:
-  CVBound(const VectorXd& b, const VectorXd& uniformBound, const VectorXd& x_ref, const VectorXd& grad_ref, const VectorXd& x, const VectorXd& v) : AffineBound(VectorXd::Zero(b.size()),b), uniformBound{uniformBound}, x_ref{x_ref}, grad_ref{grad_ref} { updateBound(0, 0, x, v); };
+  CVBound(VectorXd& a, const VectorXd& b, const VectorXd& C, const VectorXd& a_ref, const VectorXd& x_ref) : AffineBound(a,b), C(C), a_ref(a_ref), x_ref(x_ref) {};
+  // CVBound(VectorXd& a, const VectorXd& b, const VectorXd& a_ref, const VectorXd& x_ref) : AffineBound(a,b), a_ref(a_ref), x_ref(x_ref) {}; 
   void updateBound(const int index, const double partial_derivative, const VectorXd& x, const VectorXd& v);
-  
+
 private:
-  const VectorXd uniformBound;  // bound to be used for updates, uniform over observations 
+  const VectorXd a_ref;
+  const VectorXd C; 
   const VectorXd x_ref;
-  const VectorXd grad_ref;
 };
 
 class Skeleton {
 public:
-  void ZigZag(const DataObject& data, ComputationalBound& computationalBound, const VectorXd& x0, const VectorXd& v0, const int n_iter, const double finalTime, bool rejectionFree = false);
+  void ZigZag(const DataObject& data, ComputationalBound& computationalBound, const VectorXd& x0, const VectorXd& v0, const int n_iter, const double finalTime, const bool rejectionfree = false);
   void LogisticBasicZZ(const MatrixXd& dataX, const VectorXi& dataY, const int n_iter, const double finalTime, const VectorXd& x0, const VectorXd& v0); // logistic regression with zig zag
   void LogisticUpperboundZZ(const MatrixXd& dataX, const VectorXi& dataY, const int n_iter, const double finalTime, const VectorXd& x0, const VectorXd& v0); 
   void LogisticSubsamplingZZ(const MatrixXd& dataX, const VectorXi& dataY, const int n_iter, const double finalTime, const VectorXd& x0, const VectorXd& v0);
-  void LogisticCVZZ(const MatrixXd& dataX, const VectorXi& dataY, const int n_iter, const double finalTime, VectorXd& x0, const VectorXd& v0, VectorXd x_ref = VectorXd()); // control variates zigzag
+  void LogisticCVZZ(const MatrixXd& dataX, const VectorXi& dataY, const int n_iter, const double finalTime, const VectorXd& x0, const VectorXd& v0, VectorXd x_ref = VectorXd()); // control variates zigzag
   void GaussianZZ(const MatrixXd& V, const VectorXd& mu, const int n_iter, const double finalTime, const VectorXd& x0, const VectorXd& v0); // sample Gaussian with precision matrix V
   void GaussianBPS(const MatrixXd& V, const VectorXd& mu, const int n_iter, const double finalTime, const VectorXd& x0, const double refresh_rate, const bool unit_velocity = true); // sample Gaussian with precision matrix V
   void sample(const int n_samples);
@@ -95,7 +100,7 @@ private:
   void Push(const double time, const VectorXd& point, const VectorXd& direction, const double finalTime = -1);
   void ShrinkToCurrentSize(); // shrinks to actual size;
   void Resize(const int factor = 2);
-  void ZZStep(ComputationalBound& computationalBound, const DataObject& data, double& currentTime, VectorXd& position, VectorXd& direction, const double intendedFinalTime, bool rejectionFree);
+  void ZZStep(ComputationalBound& computationalBound, const DataObject& data, double& currentTime, VectorXd& position, VectorXd& direction, const double intendedFinalTime, const bool rejectionfree = false);
     
   MatrixXd Points;
   MatrixXd Directions;

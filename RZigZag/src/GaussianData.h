@@ -33,7 +33,7 @@ class GaussianData;
 
 class GaussianBound : public AffineBound {
 public:
-  GaussianBound(const VectorXd& a, const VectorXd& b, const ArrayXd& w, const ArrayXd& z, const GaussianData* dataPtr) : AffineBound(a,b), w{w}, z{z}, dataPtr{dataPtr} {};
+  GaussianBound(VectorXd& a, const VectorXd& b, const ArrayXd& w, const ArrayXd& z, const GaussianData* dataPtr) : AffineBound(a,b), w{w}, z{z}, dataPtr{dataPtr} {};
   void proposeTimeAndUpdateBound(int& index, double& deltaT);
   void updateBound(const int index, const double partial_derivative, const VectorXd& x, const VectorXd& v);
   

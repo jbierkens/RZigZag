@@ -1,6 +1,6 @@
 // LogisticData.h : subroutines for logistic regression
 //
-// Copyright (C) 2017--2018 Joris Bierkens
+// Copyright (C) 2017--2019 Joris Bierkens
 //
 // This file is part of RZigZag.
 //
@@ -62,12 +62,10 @@ class LogisticDataForSubsampling : public LogisticData
 public:
   LogisticDataForSubsampling(const MatrixXd* dataXptr, const VectorXi* dataYptr) : LogisticData(dataXptr, dataYptr) {};
   double getDerivative(const VectorXd& position, const int index) const;
-  CVBound getCVBoundObject(VectorXd& position, const VectorXd& direction, VectorXd& x_ref);
+  CVBound getCVBoundObject(const VectorXd& position, const VectorXd& direction, VectorXd& x_ref);
 private:
   void setReference(const VectorXd& xr, const VectorXd& gr) { x_ref = xr; grad_ref = gr;};
   VectorXd x_ref, grad_ref;
 };
-
-
 
 #endif

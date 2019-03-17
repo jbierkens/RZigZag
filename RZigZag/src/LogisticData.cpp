@@ -1,6 +1,6 @@
 // LogisticData.cpp : subroutines for logistic regression
 //
-// Copyright (C) 2017--2018 Joris Bierkens
+// Copyright (C) 2017--2019 Joris Bierkens
 //
 // This file is part of RZigZag.
 //
@@ -81,7 +81,7 @@ double LogisticDataForSubsampling::getDerivative(const VectorXd& position, const
   }
 }
 
-CVBound LogisticDataForSubsampling::getCVBoundObject(VectorXd& x, const VectorXd& v, VectorXd& x_ref) {
+CVBound LogisticDataForSubsampling::getCVBoundObject(const VectorXd& x, const VectorXd& v, VectorXd& x_ref) {
   
   VectorXd grad_ref;
   if (x_ref.rows() == 0) {
@@ -94,16 +94,19 @@ CVBound LogisticDataForSubsampling::getCVBoundObject(VectorXd& x, const VectorXd
   }
   setReference(x_ref, grad_ref);
 
-  if (x.rows()==0)
-    x = x_ref;
+  const VectorXd C(computeUniformBound());
+  const VectorXd b = sqrt(getDim()) * C;
+  const VectorXd a_ref = (v.cwiseProduct(grad_ref)).unaryExpr(&pospart);
+  VectorXd a(x_ref.rows());
 
-  const VectorXd uniformBound(computeUniformBound());
-  const VectorXd b = sqrt(getDim()) * uniformBound;
-  // VectorXd a_ref = (v.cwiseProduct(grad_ref)).unaryExpr(&pospart);
-  // VectorXd a = (x-x_ref).norm() * uniformBound + a_ref;
+  if (x.rows()==0)
+    a = a_ref;
+  else 
+    a = (x-x_ref).norm() * C + a_ref;
+
   // Rprintf("a: (%g, %g)\n", a[1], a[2]);
   // Rprintf("b: (%g, %g)\n", b[1], b[2]);
-  return CVBound(b,uniformBound,x_ref,grad_ref, x, v);
+    return CVBound(a, b, C, a_ref, x_ref);
 }
 
 

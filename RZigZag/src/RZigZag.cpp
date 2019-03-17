@@ -1,6 +1,6 @@
 // RZigZag.cpp : implements Zig-Zag and other PDMP samplers
 //
-// Copyright (C) 2017--2018 Joris Bierkens
+// Copyright (C) 2017--2019 Joris Bierkens
 //
 // This file is part of RZigZag.
 //
@@ -19,6 +19,7 @@
 
 // [[Rcpp::depends(RcppEigen)]]
 #include <RcppEigen.h>
+
 
 using namespace Rcpp;
  
@@ -165,32 +166,32 @@ void AffineBound::updateBound(const int index, const double value, const VectorX
   a(index) = value;
 }
 
-double AffineBound::getBound(const int index) {
+double AffineBound::getBound(const int index) const {
   return a(index);
 }
 
-// void ConstantBound::proposeTimeAndUpdateBound(int &index, double &deltaT) {
-//   
-//   const int dim = a.size();
-//   NumericVector U(runif(dim));
-//   index = - 1;
-//   deltaT = -1;
-//   
-//   for (int i = 0; i < dim; ++i) {
-//     double simulatedTime = getRandomTime(a(i), 0, U(i));
-//     if (simulatedTime > 0 && (index == -1 || simulatedTime < deltaT)) {
-//       index = i;
-//       deltaT = simulatedTime;
-//     }
-//   }
-// }
+void ConstantBound::proposeTimeAndUpdateBound(int &index, double &deltaT) {
 
-void CVBound::updateBound(const int index, const double value, const VectorXd& x, const VectorXd& v) {
-  VectorXd a_ref = (v.cwiseProduct(grad_ref)).unaryExpr(&pospart);
-  a = (x-x_ref).norm() * uniformBound + a_ref;
+  const int dim = a.size();
+  NumericVector U(runif(dim));
+  index = - 1;
+  deltaT = -1;
+
+  for (int i = 0; i < dim; ++i) {
+    double simulatedTime = getRandomTime(a(i), 0, U(i));
+    if (simulatedTime > 0 && (index == -1 || simulatedTime < deltaT)) {
+      index = i;
+      deltaT = simulatedTime;
+    }
+  }
 }
 
-void Skeleton::ZZStep(ComputationalBound& computationalBound, const DataObject& data, double& currentTime, VectorXd& position, VectorXd& direction, const double intendedFinalTime, bool rejectionFree) {
+void CVBound::updateBound(const int index, const double value, const VectorXd& x, const VectorXd& v) {
+//  VectorXd a_ref = (v.cwiseProduct(grad_ref)).unaryExpr(&pospart);
+  a = (x-x_ref).norm() * C + a_ref;
+}
+
+void Skeleton::ZZStep(ComputationalBound& computationalBound, const DataObject& data, double& currentTime, VectorXd& position, VectorXd& direction, const double intendedFinalTime, const bool rejectionFree) {
   
   int proposedIndex;
   double deltaT;
@@ -227,7 +228,7 @@ void Skeleton::ZZStep(ComputationalBound& computationalBound, const DataObject& 
   }
 }
 
-void Skeleton::ZigZag(const DataObject& data, ComputationalBound& computationalBound, const VectorXd& x0, const VectorXd& v0, const int n_iter, const double finalTime, bool rejectionFree) {
+void Skeleton::ZigZag(const DataObject& data, ComputationalBound& computationalBound, const VectorXd& x0, const VectorXd& v0, const int n_iter, const double finalTime, const bool rejectionFree) {
   
   const int dim = data.getDim();
   
@@ -265,7 +266,6 @@ void Skeleton::LogisticUpperboundZZ(const MatrixXd& dataX, const VectorXi& dataY
   ZigZag(logisticData, constantBound, x0, v0, n_iter, finalTime);
 }
 
-
 void Skeleton::LogisticSubsamplingZZ(const MatrixXd& dataX, const VectorXi& dataY, const int n_iter, const double finalTime, const VectorXd& x0, const VectorXd& v0) {
   
   const LogisticDataForSubsampling logisticData(&dataX, &dataY);
@@ -273,7 +273,7 @@ void Skeleton::LogisticSubsamplingZZ(const MatrixXd& dataX, const VectorXi& data
   ZigZag(logisticData, constantBound, x0, v0, n_iter, finalTime);
 }
 
-void Skeleton::LogisticCVZZ(const MatrixXd& dataX, const VectorXi& dataY, const int n_iter, const double finalTime, VectorXd& x0, const VectorXd& v0, VectorXd x_ref) {
+void Skeleton::LogisticCVZZ(const MatrixXd& dataX, const VectorXi& dataY, const int n_iter, const double finalTime, const VectorXd& x0, const VectorXd& v0, VectorXd x_ref) {
   
   LogisticDataForSubsampling logisticData(&dataX, &dataY);
   CVBound cvBound(logisticData.getCVBoundObject(x0, v0, x_ref));
@@ -474,15 +474,15 @@ List ZigZagLogistic(const Eigen::MatrixXd dataX, const Eigen::VectorXi dataY, in
   else
     for (int i = 0; i < dim; ++i)
       v[i] = v0[i];
-  
   Skeleton skeleton;
   if (finalTime >= 0)
     n_iterations = -1;
-
+  
   if (upperbound)
     skeleton.LogisticUpperboundZZ(dataX, dataY, n_iterations, finalTime, x, v);
-  else if (controlvariates) 
-    skeleton.LogisticCVZZ(dataX, dataY, n_iterations, finalTime, x, v, as<Eigen::Map<Eigen::VectorXd> >(x_ref));
+  else if (controlvariates)  {
+   skeleton.LogisticCVZZ(dataX, dataY, n_iterations, finalTime, x, v, as<Eigen::Map<Eigen::VectorXd> >(x_ref));
+  }
   else if (subsampling && !controlvariates)  
     skeleton.LogisticSubsamplingZZ(dataX, dataY, n_iterations, finalTime, x, v);
   else 
