@@ -1,10 +1,13 @@
-// RZigZag.h : implements Zig-Zag and other PDMP samplers
+// RInterface.h
 //
 // Copyright (C) 2017--2019 Joris Bierkens
 //
 // This file is part of RZigZag.
 //
-// RZigZag is free software: you can redistribute it and/or modify it
+// This is an attempt to bring all zigzag functionality into a pure C++ setting
+// with the idea of possible interfacing to both Python and R
+//
+// ZigZag is free software: you can redistribute it and/or modify it
 // under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 2 of the License, or
 // (at your option) any later version.
@@ -15,10 +18,10 @@
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with RZigZag.  If not, see <http://www.gnu.org/licenses/>.
+// along with ZigZag.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef __RZIGZAG_H
-#define __RZIGZAG_H
+#ifndef __RINTERFACE_H
+#define __RINTERFACE_H
 
 #define __INCLUDE_EIGEN
 // [[Rcpp::depends(RcppEigen)]]
@@ -29,12 +32,8 @@ using Eigen::MatrixXd;
 using Eigen::VectorXd;
 using Eigen::ArrayXd;
 
-#include "ZigZag.h"
-#include "LogisticSampler.h"
-#include "GaussianSampler.h"
+VectorXd getUniforms(const long n);
 
-List SkeletonToList(const Skeleton& skel);
-
-Skeleton ListToSkeleton(const List& listSkeleton);
+static std::ostream& messageStream = Rcout;
 
 #endif
