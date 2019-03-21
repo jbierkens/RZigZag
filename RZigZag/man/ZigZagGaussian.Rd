@@ -4,51 +4,30 @@
 \alias{ZigZagGaussian}
 \title{ZigZagGaussian}
 \usage{
-ZigZagGaussian(V, mu, n_iterations, x0 = numeric(0), finalTime = -1,
-  n_samples = 0L, n_batches = 0L, computeCovariance = FALSE,
+ZigZagGaussian(V, mu, n_iter = -1L, finalTime = -1, x0 = numeric(0),
   v0 = numeric(0))
 }
 \arguments{
-\item{V}{the inverse covariance matrix (or precision matrix) of the Gaussian target distribution; if V is a matrix consisting of a single column, it is interpreted as the diagonal of the precision matrix.//' @param mu mean of the Gaussian target distribution}
+\item{V}{the inverse covariance matrix (or precision matrix) of the Gaussian target distribution; if V is a matrix consisting of a single column, it is interpreted as the diagonal of the precision matrix.}
 
 \item{mu}{mean of the Gaussian target distribution}
 
-\item{n_iterations}{Number of algorithm iterations; will result in the equivalent amount of skeleton points in Gaussian case because no rejections are needed.}
+\item{finalTime}{If provided and nonnegative, run the sampler until a trajectory of continuous time length finalTime is obtained (ignoring the value of \code{n_iterations})}
 
 \item{x0}{starting point (optional, if not specified taken to be the origin)}
 
-\item{finalTime}{If provided and nonnegative, run the sampler until a trajectory of continuous time length finalTime is obtained (ignoring the value of \code{n_iterations})}
-
-\item{n_samples}{Number of discrete time samples to extract from the Zig-Zag skeleton.}
-
-\item{n_batches}{If non-zero, estimate effective sample size through the batch means method, with n_batches number of batches.}
-
-\item{computeCovariance}{Boolean indicating whether to estimate the covariance matrix.}
-
 \item{v0}{starting direction (optional, if not specified taken to be +1 in every component)}
+
+\item{n_iterations}{Number of algorithm iterations; will result in the equivalent amount of skeleton points in Gaussian case because no rejections are needed.}
 }
 \value{
 Returns a list with the following objects:
 
-\code{skeletonTimes}: Vector of switching times
+\code{Times}: Vector of switching times
 
-\code{skeletonPoints}: Matrix whose columns are locations of switches. The number of columns is identical to the length of \code{skeletonTimes}. Be aware that the skeleton points themselves are NOT samples from the target distribution.
+\code{Positions}: Matrix whose columns are locations of switches. The number of columns is identical to the length of \code{skeletonTimes}. Be aware that the skeleton points themselves are NOT samples from the target distribution.
 
-\code{skeletonDirections}: Matrix whose columns are directions just after switches. The number of columns is identical to the length of \code{skeletonTimes}.
-
-\code{samples}: If \code{n_samples > 0}, this is a matrix whose \code{n_samples} columns are samples along the Zig-Zag trajectory.
-
-\code{mode}: Not used for a Gaussian target.
-
-\code{batchMeans}: If \code{n_batches > 0}, this is a matrix whose \code{n_batches} columns are the batch means
-
-\code{means}: If \code{n_batches > 0}, this is a vector containing the means of each coordinate along the Zig-Zag trajectory
-
-\code{covariance}: If \code{n_batches > 0} or \code{computeCovariance = TRUE}, this is a matrix containing the sample covariance matrix along the trajectory
-
-\code{asVarEst}: If \code{n_batches > 0} this is an estimate of the asymptotic variance along each component
-
-\code{ESS}: If \code{n_batches > 0} this is an estimate of the effective sample size along each component
+\code{Velocities}: Matrix whose columns are velocities just after switches. The number of columns is identical to the length of \code{skeletonTimes}.
 }
 \description{
 Applies the Zig-Zag Sampler to a Gaussian target distribution, as detailed in Bierkens, Fearnhead, Roberts, The Zig-Zag Process and Super-Efficient Sampling for Bayesian Analysis of Big Data, 2016.
@@ -57,13 +36,11 @@ Assume potential of the form \deqn{U(x) = (x - mu)^T V (x - mu)/2,} i.e. a Gauss
 \examples{
 V <- matrix(c(3,1,1,3),nrow=2)
 mu <- c(2,2)
-result <- ZigZagGaussian(V, mu, 100, n_samples = 10)
-plot(result$skeletonPoints[1,], result$skeletonPoints[2,],type='l',asp=1)
-points(result$samples[1,], result$samples[2,], col='magenta')
+result <- ZigZagGaussian(V, mu, 100)
+plot(result$Positions[1,], result$Positions[2,],type='l',asp=1)
 
-V <- matrix(rep(1,100),nrow=100)
+V <- matrix(rep(1,100),nrow=100) # this will be interpreted as a diagonal matrix
 mu <- numeric(100)
-result <- ZigZagGaussian(V, mu, 1000, n_samples = 10)
-plot(result$skeletonPoints[1,], result$skeletonPoints[2,],type='l',asp=1)
-points(result$samples[1,], result$samples[2,], col='magenta')
+result <- ZigZagGaussian(V, mu, 1000)
+plot(result$Positions[1,], result$Positions[2,],type='l',asp=1)
 }
