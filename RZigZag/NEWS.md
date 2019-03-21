@@ -1,19 +1,20 @@
 * TODO: update help
-* TODO: allow for user provided starting direction
 * TODO: R helper function to 
   - extract samples from derived skeleton
   - estimate moments from skeleton
-  - perform batch means on skeleton
 * TODO: flexibility with control variates (see correspondence with Divakar Kumar)
 * TODO: general implementation for user provided gradient + Lipschitz bound
 * TODO: multivariate T distribution
 * TODO: add positive excess switching rate
 * TODO: rethink memory usage
+* TODO: allow for V (Gaussian case) to be column vector containing diagonal of precision matrix
 
-# RZigZag 0.1.7
+
+
+# RZigZag 0.2.0
+* R helper function to obtain ESS from skeleton
 * transposed dataX matrix in logistic regression: now the different rows of dataX represent different observations 
 * allow user to provide starting direction and custom reference points for control variates (ZigZagLogistic)
-* allow for V (Gaussian case) to be column vector containing diagonal of precision matrix
 
 # RZigZag 0.1.6
 * Allows for fixed time horizon (in additional to fixed number of iterations)
