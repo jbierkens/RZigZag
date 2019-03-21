@@ -1,5 +1,3 @@
-LogisticData.o
-RZigZag.o
+*.o
 RZigZag.so
-RcppExports.o
-GaussianData.o
+ZigZag.h.gch
