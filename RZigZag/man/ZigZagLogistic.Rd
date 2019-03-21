@@ -12,6 +12,8 @@ ZigZagLogistic(dataX, dataY, n_iter = -1L, finalTime = -1,
 
 \item{dataY}{Vector of length n containing {0, 1}-valued observations of the dependent variable y.}
 
+\item{n_iter}{Number of algorithm iterations; will result in the equivalent amount of skeleton points in Gaussian case because no rejections are needed.}
+
 \item{finalTime}{If provided and nonnegative, run the sampler until a trajectory of continuous time length finalTime is obtained (ignoring the value of \code{n_iterations})}
 
 \item{x0}{starting point (optional, if not specified taken to be the origin)}
@@ -19,8 +21,6 @@ ZigZagLogistic(dataX, dataY, n_iter = -1L, finalTime = -1,
 \item{v0}{starting direction (optional, if not specified taken to be +1 in every component)}
 
 \item{cv}{optional boolean to indicate the use of subsampling with control variates}
-
-\item{n_iterations}{Number of algorithm iterations; will result in the equivalent amount of skeleton points in Gaussian case because no rejections are needed.}
 }
 \value{
 Returns a list with the following objects:

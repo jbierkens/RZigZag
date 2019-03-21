@@ -35,7 +35,7 @@ Skeleton ListToSkeleton(const List& list) {
 //'
 //' @param V the inverse covariance matrix (or precision matrix) of the Gaussian target distribution; if V is a matrix consisting of a single column, it is interpreted as the diagonal of the precision matrix.
 //' @param mu mean of the Gaussian target distribution
-//' @param n_iterations Number of algorithm iterations; will result in the equivalent amount of skeleton points in Gaussian case because no rejections are needed.
+//' @param n_iter Number of algorithm iterations; will result in the equivalent amount of skeleton points in Gaussian case because no rejections are needed.
 //' @param finalTime If provided and nonnegative, run the sampler until a trajectory of continuous time length finalTime is obtained (ignoring the value of \code{n_iterations})
 //' @param x0 starting point (optional, if not specified taken to be the origin)
 //' @param v0 starting direction (optional, if not specified taken to be +1 in every component)
@@ -85,7 +85,7 @@ List ZigZagGaussian(const Eigen::MatrixXd V, const Eigen::VectorXd mu, int n_ite
 //'
 //' @param dataX Design matrix containing observations of the independent variables x. The i-th row represents the i-th observation with components x_{i,1}, ..., x_{i,d}.
 //' @param dataY Vector of length n containing {0, 1}-valued observations of the dependent variable y.
-//' @param n_iterations Number of algorithm iterations; will result in the equivalent amount of skeleton points in Gaussian case because no rejections are needed.
+//' @param n_iter Number of algorithm iterations; will result in the equivalent amount of skeleton points in Gaussian case because no rejections are needed.
 //' @param finalTime If provided and nonnegative, run the sampler until a trajectory of continuous time length finalTime is obtained (ignoring the value of \code{n_iterations})
 //' @param x0 starting point (optional, if not specified taken to be the origin)
 //' @param v0 starting direction (optional, if not specified taken to be +1 in every component)
@@ -143,6 +143,90 @@ List ZigZagLogistic(const Eigen::MatrixXd& dataX, const Eigen::VectorXi& dataY, 
     return SkeletonToList(skel);
   }
 }
+
+
+//' ZigZagStudentT
+//' 
+//' Applies the Zig-Zag Sampler to a IID Student T distribution
+//'
+//' @param dof scalar indicating degrees of freedom
+//' @param dim dimension
+//' @param n_iter Number of algorithm iterations; will result in the equivalent amount of skeleton points in Gaussian case because no rejections are needed.
+//' @param finalTime If provided and nonnegative, run the sampler until a trajectory of continuous time length finalTime is obtained (ignoring the value of \code{n_iterations})
+//' @param x0 starting point (optional, if not specified taken to be the origin)
+//' @param v0 starting direction (optional, if not specified taken to be +1 in every component)
+//' @return Returns a list with the following objects:
+//' @return \code{Times}: Vector of switching times
+//' @return \code{Positions}: Matrix whose columns are locations of switches. The number of columns is identical to the length of \code{skeletonTimes}. Be aware that the skeleton points themselves are NOT samples from the target distribution.
+//' @return \code{Velocities}: Matrix whose columns are velocities just after switches. The number of columns is identical to the length of \code{skeletonTimes}.
+//' @examples
+//' plot(result$Positions[1,], result$Positions[2,],type='l',asp=1)
+//' @export
+// [[Rcpp::export]]
+List ZigZagStudentT(double dof, int dim = 1, int n_iter = -1, double finalTime = -1, const NumericVector x0 = NumericVector(0), const NumericVector v0 = NumericVector(0)) {
+  if (finalTime >= 0)
+    n_iter = -1;
+  else if (n_iter >= 0)
+    finalTime = -1;
+  else
+    stop("Either finalTime or n_iter must be specified.");
+  
+  VectorXd x, v;
+  if (x0.size() < dim)
+    x = VectorXd::Zero(dim);
+  else
+    x = as<Eigen::Map<VectorXd> >(x0);
+  if (v0.size() < dim)
+    v = VectorXd::Ones(dim);
+  else
+    v = as<Eigen::Map<VectorXd> >(v0);
+  
+  StudentT_IID_Sampler sampler(State(x,v), dof);
+  Skeleton skel(ZigZag(sampler, n_iter, finalTime));
+  return SkeletonToList(skel);
+}
+
+//' ZigZagIIDGaussian
+//' 
+//' Applies the Zig-Zag Sampler to a IID Gaussian distribution
+//'
+//' @param variance scalar indicating variance
+//' @param dim dimension
+//' @param n_iter Number of algorithm iterations; will result in the equivalent amount of skeleton points in Gaussian case because no rejections are needed.
+//' @param finalTime If provided and nonnegative, run the sampler until a trajectory of continuous time length finalTime is obtained (ignoring the value of \code{n_iterations})
+//' @param x0 starting point (optional, if not specified taken to be the origin)
+//' @param v0 starting direction (optional, if not specified taken to be +1 in every component)
+//' @return Returns a list with the following objects:
+//' @return \code{Times}: Vector of switching times
+//' @return \code{Positions}: Matrix whose columns are locations of switches. The number of columns is identical to the length of \code{skeletonTimes}. Be aware that the skeleton points themselves are NOT samples from the target distribution.
+//' @return \code{Velocities}: Matrix whose columns are velocities just after switches. The number of columns is identical to the length of \code{skeletonTimes}.
+//' @examples
+//' plot(result$Positions[1,], result$Positions[2,],type='l',asp=1)
+//' @export
+// [[Rcpp::export]]
+List ZigZagIIDGaussian(double variance, int dim = 1, int n_iter = -1, double finalTime = -1, const NumericVector x0 = NumericVector(0), const NumericVector v0 = NumericVector(0)) {
+  if (finalTime >= 0)
+    n_iter = -1;
+  else if (n_iter >= 0)
+    finalTime = -1;
+  else
+    stop("Either finalTime or n_iter must be specified.");
+  
+  VectorXd x, v;
+  if (x0.size() < dim)
+    x = VectorXd::Zero(dim);
+  else
+    x = as<Eigen::Map<VectorXd> >(x0);
+  if (v0.size() < dim)
+    v = VectorXd::Ones(dim);
+  else
+    v = as<Eigen::Map<VectorXd> >(v0);
+  
+  Gaussian_IID_Sampler sampler(State(x,v), variance);
+  Skeleton skel(ZigZag(sampler, n_iter, finalTime));
+  return SkeletonToList(skel);
+}
+
 
 //' EstimateESS
 //' 

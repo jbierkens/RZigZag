@@ -51,6 +51,7 @@ typedef Eigen::Index SizeType;
 struct State {
   State(const SizeType dim) : t{0.0}, x{VectorXd::Zero(dim)}, v{VectorXd::Ones(dim)} {};
   State(double t, const VectorXd& x, const VectorXd& v): t{t}, x{x}, v{v} {};
+  State(const VectorXd& x, const VectorXd& v): State(0,x,v) {};
   double t;
   VectorXd x;
   VectorXd v; // represents the velocity exactly at time t
@@ -62,8 +63,7 @@ public:
   // so any initial configuration should be entered into the construction of a sampler
   Sampler(State initialState): dim{initialState.x.size()}, state{initialState} {};
   Sampler(SizeType dim): dim{dim}, state{State(dim)} {};
-//  virtual int simulateEvent() = 0;
-  virtual bool simulationStep() = 0;  
+  virtual bool simulationStep() = 0;
   const State& getState() const { return state;};
   SizeType getDim() const { return dim;};
   

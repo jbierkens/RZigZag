@@ -2,7 +2,9 @@
 
 export(EstimateESS)
 export(ZigZagGaussian)
+export(ZigZagIIDGaussian)
 export(ZigZagLogistic)
+export(ZigZagStudentT)
 import(Rcpp)
 importFrom(Rcpp,evalCpp)
 useDynLib(RZigZag)

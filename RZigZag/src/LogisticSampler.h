@@ -34,6 +34,7 @@ public:
   MatrixXd dominatingHessian() const;
   VectorXd getUniformBound() const;
   double getSubsampledDerivative(const VectorXd& position, const int index, const VectorXd& x_ref = VectorXd(0)) const;
+  VectorXd getConstantBound() const { return n_observations * dataX.array().abs().colwise().maxCoeff();};
 
 protected:
   const SizeType dim, n_observations;

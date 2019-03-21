@@ -8,7 +8,7 @@
 #'
 #' @param V the inverse covariance matrix (or precision matrix) of the Gaussian target distribution; if V is a matrix consisting of a single column, it is interpreted as the diagonal of the precision matrix.
 #' @param mu mean of the Gaussian target distribution
-#' @param n_iterations Number of algorithm iterations; will result in the equivalent amount of skeleton points in Gaussian case because no rejections are needed.
+#' @param n_iter Number of algorithm iterations; will result in the equivalent amount of skeleton points in Gaussian case because no rejections are needed.
 #' @param finalTime If provided and nonnegative, run the sampler until a trajectory of continuous time length finalTime is obtained (ignoring the value of \code{n_iterations})
 #' @param x0 starting point (optional, if not specified taken to be the origin)
 #' @param v0 starting direction (optional, if not specified taken to be +1 in every component)
@@ -37,7 +37,7 @@ ZigZagGaussian <- function(V, mu, n_iter = -1L, finalTime = -1, x0 = numeric(0),
 #'
 #' @param dataX Design matrix containing observations of the independent variables x. The i-th row represents the i-th observation with components x_{i,1}, ..., x_{i,d}.
 #' @param dataY Vector of length n containing {0, 1}-valued observations of the dependent variable y.
-#' @param n_iterations Number of algorithm iterations; will result in the equivalent amount of skeleton points in Gaussian case because no rejections are needed.
+#' @param n_iter Number of algorithm iterations; will result in the equivalent amount of skeleton points in Gaussian case because no rejections are needed.
 #' @param finalTime If provided and nonnegative, run the sampler until a trajectory of continuous time length finalTime is obtained (ignoring the value of \code{n_iterations})
 #' @param x0 starting point (optional, if not specified taken to be the origin)
 #' @param v0 starting direction (optional, if not specified taken to be +1 in every component)
@@ -65,6 +65,48 @@ ZigZagGaussian <- function(V, mu, n_iter = -1L, finalTime = -1, x0 = numeric(0),
 #' @export
 ZigZagLogistic <- function(dataX, dataY, n_iter = -1L, finalTime = -1, x0 = numeric(0), v0 = numeric(0), cv = FALSE) {
     .Call('_RZigZag_ZigZagLogistic', PACKAGE = 'RZigZag', dataX, dataY, n_iter, finalTime, x0, v0, cv)
+}
+
+#' ZigZagStudentT
+#' 
+#' Applies the Zig-Zag Sampler to a IID Student T distribution
+#'
+#' @param dof scalar indicating degrees of freedom
+#' @param dim dimension
+#' @param n_iter Number of algorithm iterations; will result in the equivalent amount of skeleton points in Gaussian case because no rejections are needed.
+#' @param finalTime If provided and nonnegative, run the sampler until a trajectory of continuous time length finalTime is obtained (ignoring the value of \code{n_iterations})
+#' @param x0 starting point (optional, if not specified taken to be the origin)
+#' @param v0 starting direction (optional, if not specified taken to be +1 in every component)
+#' @return Returns a list with the following objects:
+#' @return \code{Times}: Vector of switching times
+#' @return \code{Positions}: Matrix whose columns are locations of switches. The number of columns is identical to the length of \code{skeletonTimes}. Be aware that the skeleton points themselves are NOT samples from the target distribution.
+#' @return \code{Velocities}: Matrix whose columns are velocities just after switches. The number of columns is identical to the length of \code{skeletonTimes}.
+#' @examples
+#' plot(result$Positions[1,], result$Positions[2,],type='l',asp=1)
+#' @export
+ZigZagStudentT <- function(dof, dim = 1L, n_iter = -1L, finalTime = -1, x0 = numeric(0), v0 = numeric(0)) {
+    .Call('_RZigZag_ZigZagStudentT', PACKAGE = 'RZigZag', dof, dim, n_iter, finalTime, x0, v0)
+}
+
+#' ZigZagIIDGaussian
+#' 
+#' Applies the Zig-Zag Sampler to a IID Gaussian distribution
+#'
+#' @param variance scalar indicating variance
+#' @param dim dimension
+#' @param n_iter Number of algorithm iterations; will result in the equivalent amount of skeleton points in Gaussian case because no rejections are needed.
+#' @param finalTime If provided and nonnegative, run the sampler until a trajectory of continuous time length finalTime is obtained (ignoring the value of \code{n_iterations})
+#' @param x0 starting point (optional, if not specified taken to be the origin)
+#' @param v0 starting direction (optional, if not specified taken to be +1 in every component)
+#' @return Returns a list with the following objects:
+#' @return \code{Times}: Vector of switching times
+#' @return \code{Positions}: Matrix whose columns are locations of switches. The number of columns is identical to the length of \code{skeletonTimes}. Be aware that the skeleton points themselves are NOT samples from the target distribution.
+#' @return \code{Velocities}: Matrix whose columns are velocities just after switches. The number of columns is identical to the length of \code{skeletonTimes}.
+#' @examples
+#' plot(result$Positions[1,], result$Positions[2,],type='l',asp=1)
+#' @export
+ZigZagIIDGaussian <- function(variance, dim = 1L, n_iter = -1L, finalTime = -1, x0 = numeric(0), v0 = numeric(0)) {
+    .Call('_RZigZag_ZigZagIIDGaussian', PACKAGE = 'RZigZag', variance, dim, n_iter, finalTime, x0, v0)
 }
 
 #' EstimateESS

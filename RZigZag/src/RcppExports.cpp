@@ -39,15 +39,47 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// ZigZagStudentT
+List ZigZagStudentT(double dof, int dim, int n_iter, double finalTime, const NumericVector x0, const NumericVector v0);
+RcppExport SEXP _RZigZag_ZigZagStudentT(SEXP dofSEXP, SEXP dimSEXP, SEXP n_iterSEXP, SEXP finalTimeSEXP, SEXP x0SEXP, SEXP v0SEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< double >::type dof(dofSEXP);
+    Rcpp::traits::input_parameter< int >::type dim(dimSEXP);
+    Rcpp::traits::input_parameter< int >::type n_iter(n_iterSEXP);
+    Rcpp::traits::input_parameter< double >::type finalTime(finalTimeSEXP);
+    Rcpp::traits::input_parameter< const NumericVector >::type x0(x0SEXP);
+    Rcpp::traits::input_parameter< const NumericVector >::type v0(v0SEXP);
+    rcpp_result_gen = Rcpp::wrap(ZigZagStudentT(dof, dim, n_iter, finalTime, x0, v0));
+    return rcpp_result_gen;
+END_RCPP
+}
+// ZigZagIIDGaussian
+List ZigZagIIDGaussian(double variance, int dim, int n_iter, double finalTime, const NumericVector x0, const NumericVector v0);
+RcppExport SEXP _RZigZag_ZigZagIIDGaussian(SEXP varianceSEXP, SEXP dimSEXP, SEXP n_iterSEXP, SEXP finalTimeSEXP, SEXP x0SEXP, SEXP v0SEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< double >::type variance(varianceSEXP);
+    Rcpp::traits::input_parameter< int >::type dim(dimSEXP);
+    Rcpp::traits::input_parameter< int >::type n_iter(n_iterSEXP);
+    Rcpp::traits::input_parameter< double >::type finalTime(finalTimeSEXP);
+    Rcpp::traits::input_parameter< const NumericVector >::type x0(x0SEXP);
+    Rcpp::traits::input_parameter< const NumericVector >::type v0(v0SEXP);
+    rcpp_result_gen = Rcpp::wrap(ZigZagIIDGaussian(variance, dim, n_iter, finalTime, x0, v0));
+    return rcpp_result_gen;
+END_RCPP
+}
 // EstimateESS
-List EstimateESS(const List& skeletonList, const int n_batches, const int coordinate);
+List EstimateESS(const List& skeletonList, int n_batches, int coordinate);
 RcppExport SEXP _RZigZag_EstimateESS(SEXP skeletonListSEXP, SEXP n_batchesSEXP, SEXP coordinateSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< const List& >::type skeletonList(skeletonListSEXP);
-    Rcpp::traits::input_parameter< const int >::type n_batches(n_batchesSEXP);
-    Rcpp::traits::input_parameter< const int >::type coordinate(coordinateSEXP);
+    Rcpp::traits::input_parameter< int >::type n_batches(n_batchesSEXP);
+    Rcpp::traits::input_parameter< int >::type coordinate(coordinateSEXP);
     rcpp_result_gen = Rcpp::wrap(EstimateESS(skeletonList, n_batches, coordinate));
     return rcpp_result_gen;
 END_RCPP
@@ -56,6 +88,8 @@ END_RCPP
 static const R_CallMethodDef CallEntries[] = {
     {"_RZigZag_ZigZagGaussian", (DL_FUNC) &_RZigZag_ZigZagGaussian, 6},
     {"_RZigZag_ZigZagLogistic", (DL_FUNC) &_RZigZag_ZigZagLogistic, 7},
+    {"_RZigZag_ZigZagStudentT", (DL_FUNC) &_RZigZag_ZigZagStudentT, 6},
+    {"_RZigZag_ZigZagIIDGaussian", (DL_FUNC) &_RZigZag_ZigZagIIDGaussian, 6},
     {"_RZigZag_EstimateESS", (DL_FUNC) &_RZigZag_EstimateESS, 3},
     {NULL, NULL, 0}
 };
