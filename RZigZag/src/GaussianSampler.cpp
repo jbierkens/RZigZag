@@ -19,7 +19,7 @@
 
 #include "GaussianSampler.h"
 
-bool GaussianZZ::simulationStep() {
+bool Gaussian_ZZ::simulationStep() {
   VectorXd U(getUniforms(dim));
   int index = -1;
   double deltaT = -1;
@@ -42,3 +42,34 @@ bool GaussianZZ::simulationStep() {
   return true;
 }
 
+bool Gaussian_BPS::simulationStep() {
+  double t_reflect, t_refresh, deltaT;
+  if (refresh_rate <= 0) {
+    t_reflect = getTimeAffineBound(a, b, getUniforms(1)(0));
+    t_refresh = -1;
+    deltaT = t_reflect;
+  }
+  else {
+    VectorXd U(getUniforms(2));
+    t_reflect = getTimeAffineBound(a, b, U(0));
+    t_refresh = -log(U(1))/refresh_rate;
+    deltaT = (t_reflect < t_refresh ? t_reflect : t_refresh);
+  }
+  state.x += deltaT * state.v; // O(d)
+  gradient = gradient + deltaT * w; // O(d)
+  state.t += deltaT;
+  if (t_refresh < 0 || t_reflect < t_refresh)
+  { // O(d)
+    VectorXd normalized_gradient = gradient.normalized(); // for projection
+    VectorXd delta_v = - 2 * (state.v.dot(normalized_gradient)) * normalized_gradient;
+    state.v = state.v + delta_v;
+  }
+  else
+    state.v = resampleVelocity(dim, unit_velocity);
+  
+  w = V * state.v; // preserves invariant for w, O(d^2)!
+  a = state.v.dot(gradient);
+  b = state.v.dot(w);
+
+  return true;
+}

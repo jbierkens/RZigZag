@@ -22,15 +22,15 @@
 
 #include "VariousSamplers.h"
 
-void IID_Sampler::InitializeWaitingTimes() {
+void IID_ZZ::Initialize() {
   VectorXd uniforms = getUniforms(dim);
-  waitingTimes = VectorXd(dim);
+  eventTimes = VectorXd(dim);
   for (int i = 0; i < dim; ++i) {
-    waitingTimes(i) = sampleWaitingTime(state.x(i),state.v(i), uniforms(i));
+    eventTimes(i) = sampleEventTime(state.x(i),state.v(i), uniforms(i));
   }
 }
 
-double IID_Sampler::sampleWaitingTime(const double x, const double v, const double uniform) const {
+double IID_ZZ::sampleEventTime(const double x, const double v, const double uniform) const {
   
   double U_val = (v *(x-x0) > 0 ? univariatePotential(x) : univariatePotential(x0));
   if (v > 0) {
@@ -41,13 +41,79 @@ double IID_Sampler::sampleWaitingTime(const double x, const double v, const doub
   }
 }
 
-bool IID_Sampler::simulationStep() {
+bool IID_ZZ::simulationStep() {
   SizeType index;
-  double deltaT = waitingTimes.minCoeff(&index);
-  waitingTimes = waitingTimes.array() - deltaT;
+  double deltaT = eventTimes.minCoeff(&index);
+  eventTimes = eventTimes.array() - deltaT;
   state.x += state.v * deltaT;
   state.t += deltaT;
   state.v(index) = -state.v(index);
-  waitingTimes(index) = sampleWaitingTime(state.x(index), state.v(index), getUniforms(1)(0));
+  eventTimes(index) = sampleEventTime(state.x(index), state.v(index), getUniforms(1)(0));
   return true;
+}
+
+double SphericallySymmetricZZSampler::getTrueIntensity() {
+  double x_norm = state.x.norm();
+  return h_prime(x_norm)/x_norm * pospart(state.x(proposedEvent) * state.v(proposedEvent));
+}
+
+void SphericallySymmetricZZSampler::updateBound() {
+  a = C2 * state.v.array() * state.x.array() + C1; // O(d) computation
+
+}
+
+void SphericallySymmetricZZSampler::Initialize() {
+  updateBound();
+  b = C2 * ArrayXd::Ones(dim);
+}
+
+
+void Affine_BPS::proposeEvent() {
+  
+  VectorXd U(getUniforms(n_clocks));
+  SizeType index = - 1;
+  double deltaT = -1;
+  
+  for (int i = 0; i < n_clocks; ++i) {
+    double simulatedTime = getTimeAffineBound(a(i), b(i), U(i));
+    if (simulatedTime > 0 && (index == -1 || simulatedTime < deltaT)) {
+      index = i;
+      deltaT = simulatedTime;
+    }
+  }
+  if (deltaT < 0)
+  { 
+    // Rprintf("Wandered off to infinity\n");
+    throw "Affine_BPS::proposeEvent(): wandered off to infinity.";
+  }
+  else {
+    a[1] += b[1] * deltaT;
+    state.x += deltaT * state.v;
+    state.t += deltaT;
+    proposedEvent = index;
+  }
+}
+
+void Affine_BPS::simulateJump() {
+  
+  if (proposedEvent == 0) // refreshment 
+  {
+    state.v = resampleVelocity(dim, unit_velocity);
+  }
+  else
+  { // O(d)
+    VectorXd normalized_gradient = gradient.normalized(); // for projection
+    VectorXd delta_v = - 2 * (state.v.dot(normalized_gradient)) * normalized_gradient;
+    state.v = state.v + delta_v;
+  }
+}
+
+double Affine_BPS::getTrueIntensity() {
+  updateGradient();
+  if (proposedEvent == 0) {
+    return refresh_rate;
+  }
+  else {
+    return gradient.dot(state.v);
+  }
 }

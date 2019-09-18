@@ -23,3 +23,5 @@
 #include "RInterface.h"
 
 VectorXd getUniforms(const long n) { return as<Eigen::Map<VectorXd> >(runif(n)); };
+
+VectorXd getStandardNormals(const long n) { return as<Eigen::Map<VectorXd> >(rnorm(n)); };

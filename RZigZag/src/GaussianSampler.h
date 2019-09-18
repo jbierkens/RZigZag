@@ -21,16 +21,36 @@
 #define __GAUSSIANSAMPLER_H
 #include "ZigZag.h"
 
-class GaussianZZ : public Sampler {
+class Gaussian_ZZ : public Sampler {
 public:
-  GaussianZZ(const MatrixXd& V, const VectorXd& mu = VectorXd(0), VectorXd x = VectorXd(0), VectorXd v = VectorXd(0)): Sampler(State(V.rows())), V{V}, mu{mu}, w{(V * v).array()}, z{(V * (x - mu)).array()}, a{v.array() * z}, b{v.array() * w} {};
+  Gaussian_ZZ(const MatrixXd& V, const VectorXd& mu = VectorXd(0)): Sampler(State(V.rows())), V{V}, mu{mu} { };
+  Gaussian_ZZ(const MatrixXd& V, VectorXd x, VectorXd v, const VectorXd& mu = VectorXd(0)): Sampler(State(x,v)), V{V}, mu{mu} { };
   bool simulationStep();
-
+  void Initialize() {w = (V * state.v).array(); z =(V * (state.x - mu)).array(); a = state.v.array() * z; b = state.v.array() * w;};
+  
 private:
   const MatrixXd& V;
   const VectorXd& mu;
   ArrayXd w, z; // invariants w = V * v, z = V * x
   ArrayXd a, b; // invariants a = v.* z, b = v .* w
 };
+
+class Gaussian_BPS : public Sampler {
+public:
+  Gaussian_BPS(const MatrixXd& V, const VectorXd& mu = VectorXd(0), const double refresh_rate = 1.0, const bool unit_velocity = false): Sampler(State(V.rows())), V{V}, mu{mu}, refresh_rate(refresh_rate), unit_velocity{unit_velocity} {  };
+  Gaussian_BPS(const MatrixXd& V, VectorXd x, VectorXd v, const VectorXd& mu = VectorXd(0), const double refresh_rate = 1.0, const bool unit_velocity = false): Sampler(State(x,v)), V{V}, mu{mu}, refresh_rate(refresh_rate), unit_velocity{unit_velocity} { };
+  bool simulationStep();
+  void Initialize() { gradient = V * (state.x - mu); w = V * state.v; a = state.v.dot(gradient); b = state.v.dot(w); };
+  
+private:
+  const MatrixXd& V;
+  const VectorXd& mu;
+  const double refresh_rate;
+  const bool unit_velocity;
+  VectorXd gradient, w;
+  double a, b;
+};
+
+
 
 #endif

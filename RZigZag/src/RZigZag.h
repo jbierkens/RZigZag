@@ -33,6 +33,7 @@ using Eigen::ArrayXd;
 #include "LogisticSampler.h"
 #include "GaussianSampler.h"
 #include "VariousSamplers.h"
+#include "PostProcess.h"
 
 List SkeletonToList(const Skeleton& skel);
 

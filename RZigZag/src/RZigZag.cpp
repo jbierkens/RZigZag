@@ -33,7 +33,7 @@ Skeleton ListToSkeleton(const List& list) {
 //' Applies the Zig-Zag Sampler to a Gaussian target distribution, as detailed in Bierkens, Fearnhead, Roberts, The Zig-Zag Process and Super-Efficient Sampling for Bayesian Analysis of Big Data, 2016.
 //' Assume potential of the form \deqn{U(x) = (x - mu)^T V (x - mu)/2,} i.e. a Gaussian with mean vector \code{mu} and covariance matrix \code{inv(V)}
 //'
-//' @param V the inverse covariance matrix (or precision matrix) of the Gaussian target distribution; if V is a matrix consisting of a single column, it is interpreted as the diagonal of the precision matrix.
+//' @param V the inverse covariance matrix (or precision matrix) of the Gaussian target distribution.
 //' @param mu mean of the Gaussian target distribution
 //' @param n_iter Number of algorithm iterations; will result in the equivalent amount of skeleton points in Gaussian case because no rejections are needed.
 //' @param finalTime If provided and nonnegative, run the sampler until a trajectory of continuous time length finalTime is obtained (ignoring the value of \code{n_iterations})
@@ -47,11 +47,6 @@ Skeleton ListToSkeleton(const List& list) {
 //' V <- matrix(c(3,1,1,3),nrow=2)
 //' mu <- c(2,2)
 //' result <- ZigZagGaussian(V, mu, 100)
-//' plot(result$Positions[1,], result$Positions[2,],type='l',asp=1)
-//' 
-//' V <- matrix(rep(1,100),nrow=100) # this will be interpreted as a diagonal matrix
-//' mu <- numeric(100)
-//' result <- ZigZagGaussian(V, mu, 1000)
 //' plot(result$Positions[1,], result$Positions[2,],type='l',asp=1)
 //' @export
 // [[Rcpp::export]]
@@ -74,7 +69,7 @@ List ZigZagGaussian(const Eigen::MatrixXd V, const Eigen::VectorXd mu, int n_ite
   else
     v = as<Eigen::Map<VectorXd> >(v0);
   
-  GaussianZZ sampler(V, mu, x, v);
+  Gaussian_ZZ sampler(V, x, v, mu);
   Skeleton skel(ZigZag(sampler, n_iter, finalTime));
   return SkeletonToList(skel);
 }
@@ -147,7 +142,7 @@ List ZigZagLogistic(const Eigen::MatrixXd& dataX, const Eigen::VectorXi& dataY, 
 
 //' ZigZagStudentT
 //' 
-//' Applies the Zig-Zag Sampler to a IID Student T distribution
+//' Applies the Zig-Zag Sampler to a Student T distribution (IID or spherically symmetric)
 //'
 //' @param dof scalar indicating degrees of freedom
 //' @param dim dimension
@@ -155,15 +150,19 @@ List ZigZagLogistic(const Eigen::MatrixXd& dataX, const Eigen::VectorXi& dataY, 
 //' @param finalTime If provided and nonnegative, run the sampler until a trajectory of continuous time length finalTime is obtained (ignoring the value of \code{n_iterations})
 //' @param x0 starting point (optional, if not specified taken to be the origin)
 //' @param v0 starting direction (optional, if not specified taken to be +1 in every component)
+//' @param sphericallySymmetric boolean. If false, sample iid Student T distribution, if true (default) sample spherically summetric Student t dsitribution.
 //' @return Returns a list with the following objects:
 //' @return \code{Times}: Vector of switching times
 //' @return \code{Positions}: Matrix whose columns are locations of switches. The number of columns is identical to the length of \code{skeletonTimes}. Be aware that the skeleton points themselves are NOT samples from the target distribution.
 //' @return \code{Velocities}: Matrix whose columns are velocities just after switches. The number of columns is identical to the length of \code{skeletonTimes}.
 //' @examples
+//' dim = 2
+//' dof = 4
+//' result <- ZigZagStudentT(dof, dim, n_iter=1000, sphericallySymmetric = TRUE)
 //' plot(result$Positions[1,], result$Positions[2,],type='l',asp=1)
 //' @export
 // [[Rcpp::export]]
-List ZigZagStudentT(double dof, int dim = 1, int n_iter = -1, double finalTime = -1, const NumericVector x0 = NumericVector(0), const NumericVector v0 = NumericVector(0)) {
+List ZigZagStudentT(double dof, int dim = 1, int n_iter = -1, double finalTime = -1, const NumericVector x0 = NumericVector(0), const NumericVector v0 = NumericVector(0), bool sphericallySymmetric = true) {
   if (finalTime >= 0)
     n_iter = -1;
   else if (n_iter >= 0)
@@ -180,11 +179,74 @@ List ZigZagStudentT(double dof, int dim = 1, int n_iter = -1, double finalTime =
     v = VectorXd::Ones(dim);
   else
     v = as<Eigen::Map<VectorXd> >(v0);
-  
-  StudentT_IID_Sampler sampler(State(x,v), dof);
-  Skeleton skel(ZigZag(sampler, n_iter, finalTime));
-  return SkeletonToList(skel);
+  if (sphericallySymmetric) {
+    SphericallySymmetricStudentZZ sampler(State(x,v),dof);
+    Skeleton skel = ZigZag(sampler, n_iter, finalTime);
+    return SkeletonToList(skel);
+  }
+  else {
+    StudentT_IID_ZZ sampler(State(x,v), dof);
+    Skeleton skel = ZigZag(sampler, n_iter, finalTime);
+    return SkeletonToList(skel);
+  }
 }
+
+//' BPSStudentT
+//' 
+//' Applies the Zig-Zag Sampler to a Student T distribution (IID or spherically symmetric)
+//'
+//' @param dof scalar indicating degrees of freedom
+//' @param dim dimension
+//' @param n_iter Number of algorithm iterations; will result in the equivalent amount of skeleton points in Gaussian case because no rejections are needed.
+//' @param finalTime If provided and nonnegative, run the sampler until a trajectory of continuous time length finalTime is obtained (ignoring the value of \code{n_iterations})
+//' @param x0 starting point (optional, if not specified taken to be the origin)
+//' @param v0 starting direction (optional, if not specified taken to be a random vector)
+//' @param sphericallySymmetric boolean. If false, sample iid Student T distribution, if true (default) sample spherically summetric Student t dsitribution.
+//' @param refresh_rate \code{lambda_refresh}
+//' @param unit_velocity TRUE indicates velocities uniform on unit sphere, FALSE (default) indicates standard normal velocities
+//' @return Returns a list with the following objects:
+//' @return \code{Times}: Vector of switching times
+//' @return \code{Positions}: Matrix whose columns are locations of switches. The number of columns is identical to the length of \code{skeletonTimes}. Be aware that the skeleton points themselves are NOT samples from the target distribution.
+//' @return \code{Velocities}: Matrix whose columns are velocities just after switches. The number of columns is identical to the length of \code{skeletonTimes}.
+//' @examples
+//' dim = 2
+//' dof = 4
+//' result <- BPSStudentT(dof, dim, n_iter=1000,sphericallySymmetric = TRUE)
+//' plot(result$Positions[1,], result$Positions[2,],type='l',asp=1)
+//' @export
+// [[Rcpp::export]]
+List BPSStudentT(double dof, int dim = 1, int n_iter = -1, double finalTime = -1, const NumericVector x0 = NumericVector(0), const NumericVector v0 = NumericVector(0), bool sphericallySymmetric = true, const double refresh_rate = 1, const bool unit_velocity = false) {
+  if (finalTime >= 0)
+    n_iter = -1;
+  else if (n_iter >= 0)
+    finalTime = -1;
+  else
+    stop("Either finalTime or n_iter must be specified.");
+  
+  VectorXd x, v;
+  if (x0.size() < dim)
+    x = VectorXd::Zero(dim);
+  else
+    x = as<Eigen::Map<VectorXd> >(x0);
+  if (v0.size() < dim) {
+    v = as<Eigen::Map<VectorXd> >(rnorm(dim));
+    if (unit_velocity)
+      v = v/v.norm();
+  }
+  else
+    v = as<Eigen::Map<VectorXd> >(v0);
+  if (sphericallySymmetric) {
+    SphericallySymmetricStudentBPS sampler(State(x,v), dof, refresh_rate, unit_velocity);
+    Skeleton skel = ZigZag(sampler, n_iter, finalTime);
+    return SkeletonToList(skel);
+  }
+  else {
+    StudentT_IID_BPS sampler(State(x,v), dof, refresh_rate, unit_velocity);
+    Skeleton skel = ZigZag(sampler, n_iter, finalTime);
+    return SkeletonToList(skel);
+  }
+}
+
 
 //' ZigZagIIDGaussian
 //' 
@@ -201,7 +263,8 @@ List ZigZagStudentT(double dof, int dim = 1, int n_iter = -1, double finalTime =
 //' @return \code{Positions}: Matrix whose columns are locations of switches. The number of columns is identical to the length of \code{skeletonTimes}. Be aware that the skeleton points themselves are NOT samples from the target distribution.
 //' @return \code{Velocities}: Matrix whose columns are velocities just after switches. The number of columns is identical to the length of \code{skeletonTimes}.
 //' @examples
-//' plot(result$Positions[1,], result$Positions[2,],type='l',asp=1)
+//' result <- ZigZagIIDGaussian(1, 2, 1000)
+//' plot(result$Positions[2,], result$Positions[1,],type='l',asp=1)
 //' @export
 // [[Rcpp::export]]
 List ZigZagIIDGaussian(double variance, int dim = 1, int n_iter = -1, double finalTime = -1, const NumericVector x0 = NumericVector(0), const NumericVector v0 = NumericVector(0)) {
@@ -222,11 +285,110 @@ List ZigZagIIDGaussian(double variance, int dim = 1, int n_iter = -1, double fin
   else
     v = as<Eigen::Map<VectorXd> >(v0);
   
-  Gaussian_IID_Sampler sampler(State(x,v), variance);
+  Gaussian_IID_ZZ sampler(State(x,v), variance);
   Skeleton skel(ZigZag(sampler, n_iter, finalTime));
   return SkeletonToList(skel);
 }
 
+//' BPSGaussian
+//'
+//' Applies the BPS Sampler to a Gaussian target distribution, as detailed in Bouchard-Côté et al, 2017.
+//' Assume potential of the form \deqn{U(x) = (x - mu)^T V (x - mu)/2,} i.e. a Gaussian with mean vector \code{mu} and covariance matrix \code{inv(V)}
+//'
+//' @param V the inverse covariance matrix (or precision matrix) of the Gaussian target distribution.
+//' @param mu mean of the Gaussian target distribution
+//' @param n_iter Number of algorithm iterations; will result in the equivalent amount of skeleton points in Gaussian case because no rejections are needed.
+//' @param x0 starting point (optional, if not specified taken to be the origin)
+//' @param v0 starting direction (optional, if not specified taken to be a random vector)
+//' @param finalTime If provided and nonnegative, run the BPS sampler until a trajectory of continuous time length finalTime is obtained (ignoring the value of \code{n_iterations})
+//' @param refresh_rate \code{lambda_refresh}
+//' @param unit_velocity TRUE indicates velocities uniform on unit sphere, FALSE (default) indicates standard normal velocities
+//' @return Returns a list with the following objects:
+//' @return \code{Times}: Vector of switching times
+//' @return \code{Positions}: Matrix whose columns are locations of switches. The number of columns is identical to the length of \code{skeletonTimes}. Be aware that the skeleton points themselves are NOT samples from the target distribution.
+//' @return \code{Velocities}: Matrix whose columns are velocities just after switches. The number of columns is identical to the length of \code{skeletonTimes}.
+//' @examples
+//' V <- matrix(c(3,1,1,3),nrow=2)
+//' mu <- c(2,2)
+//' x0 <- c(0,0)
+//' result <- BPSGaussian(V, mu, n_iter = 100, x0 = x0)
+//' plot(result$Positions[1,], result$Positions[2,],type='l',asp=1)
+//' @export
+// [[Rcpp::export]]
+List BPSGaussian(const Eigen::MatrixXd V, const Eigen::VectorXd mu, int n_iter = -1, double finalTime = -1.0, const NumericVector x0 = NumericVector(0), const NumericVector v0 = NumericVector(0), const double refresh_rate = 1, const bool unit_velocity = false) {
+  
+  if (finalTime >= 0)
+    n_iter = -1;
+  else if (n_iter >= 0)
+    finalTime = -1;
+  else
+    stop("Either finalTime or n_iterations must be specified.");
+  
+  const int dim = V.rows();
+  VectorXd x, v;
+  if (x0.size() < dim)
+    x = VectorXd::Zero(dim);
+  else
+    x = as<Eigen::Map<VectorXd> >(x0);
+  if (v0.size() < dim) {
+    v = as<Eigen::Map<VectorXd> >(rnorm(dim));
+    if (unit_velocity)
+      v = v/v.norm();
+  }
+  else
+    v = as<Eigen::Map<VectorXd> >(v0);
+  
+  Gaussian_BPS sampler(V, x, v, mu, refresh_rate, unit_velocity);
+  Skeleton skel(ZigZag(sampler, n_iter, finalTime));
+  return SkeletonToList(skel);
+}
+
+//' BPSIIDGaussian
+//' 
+//' Applies the Bouncy Particle Sampler to a IID Gaussian distribution
+//'
+//' @param variance scalar indicating variance
+//' @param dim dimension
+//' @param n_iter Number of algorithm iterations; will result in the equivalent amount of skeleton points in Gaussian case because no rejections are needed.
+//' @param finalTime If provided and nonnegative, run the sampler until a trajectory of continuous time length finalTime is obtained (ignoring the value of \code{n_iterations})
+//' @param x0 starting point (optional, if not specified taken to be the origin)
+//' @param v0 starting direction (optional, if not specified taken to be a random vector)
+//' @param refresh_rate \code{lambda_refresh}
+//' @param unit_velocity TRUE indicates velocities uniform on unit sphere, FALSE (default) indicates standard normal velocities
+//' @return Returns a list with the following objects:
+//' @return \code{Times}: Vector of switching times
+//' @return \code{Positions}: Matrix whose columns are locations of switches. The number of columns is identical to the length of \code{skeletonTimes}. Be aware that the skeleton points themselves are NOT samples from the target distribution.
+//' @return \code{Velocities}: Matrix whose columns are velocities just after switches. The number of columns is identical to the length of \code{skeletonTimes}.
+//' @examples
+//' result <- BPSIIDGaussian(1, 2, 1000)
+//' plot(result$Positions[2,], result$Positions[1,],type='l',asp=1)
+//' @export
+// [[Rcpp::export]]
+List BPSIIDGaussian(double variance, int dim = 1, int n_iter = -1, double finalTime = -1, const NumericVector x0 = NumericVector(0), const NumericVector v0 = NumericVector(0), const double refresh_rate = 1, const bool unit_velocity = false) {
+  if (finalTime >= 0)
+    n_iter = -1;
+  else if (n_iter >= 0)
+    finalTime = -1;
+  else
+    stop("Either finalTime or n_iter must be specified.");
+  
+  VectorXd x, v;
+  if (x0.size() < dim)
+    x = VectorXd::Zero(dim);
+  else
+    x = as<Eigen::Map<VectorXd> >(x0);
+  if (v0.size() < dim) {
+    v = as<Eigen::Map<VectorXd> >(rnorm(dim));
+    if (unit_velocity)
+      v = v/v.norm();
+  }
+  else
+    v = as<Eigen::Map<VectorXd> >(v0);
+  
+  Gaussian_IID_BPS sampler(State(x,v), variance, refresh_rate, unit_velocity);
+  Skeleton skel(ZigZag(sampler, n_iter, finalTime));
+  return SkeletonToList(skel);
+}
 
 //' EstimateESS
 //' 
@@ -235,177 +397,77 @@ List ZigZagIIDGaussian(double variance, int dim = 1, int n_iter = -1, double fin
 //' @param skeletonList a piecewise deterministic skeleton (consisting of Times, Points and Velocities) returned by a sampler
 //' @param n_batches optional argument indicating the number of batches to use in the batch means estimation method
 //' @param coordinate if specified, only estimate the ESS of the specified coordinate, otherwise estimate the ESS of all coordinates
-//' @return Returns a vector containing the estimated asymptotic variance and ESS
+//' @param zeroMeans if TRUE do not estimate means but assume a centered distribution
+//' @return Returns a list containing the estimated asymptotic variance, ESS and estimated covariance matrix
 //' @export
 // [[Rcpp::export]]
-List EstimateESS(const List& skeletonList, int n_batches = 100, int coordinate = -1) {
+List EstimateESS(const List& skeletonList, int n_batches = 100, int coordinate = -1, bool zeroMeans = false) {
   
   Skeleton skel = ListToSkeleton(skeletonList);
+  PostProcess pp(skel);
   if (coordinate > 0)
     coordinate--; // convert R to C++ number
-  VectorXd asvar(skel.estimateAsymptoticVariance(n_batches, coordinate));
-  VectorXd ESS(skel.estimateESS(n_batches, coordinate, asvar));
-  return List::create(Named("AsVar") = asvar, Named("ESS") = ESS);
+  pp.estimateESS(n_batches, coordinate, zeroMeans);
+  return List::create(Named("AsVar") = pp.getAsVar(), Named("ESS") = pp.getESS(), Named("Cov") = pp.getCovarianceMatrix());
+}
+
+//' EstimateMoment
+//' 
+//' Estimates the p-th moment of a piecewise deterministic skeleton
+//' 
+//' @param skeletonList a piecewise deterministic skeleton (consisting of Times, Points and Velocities) returned by a sampler
+//' @param p moment to estimate
+//' @param coordinate if specified, only estimate the ESS of the specified coordinate, otherwise estimate the ESS of all coordinates
+//' @return Returns a list containing the estimated moment
+//' @export
+// [[Rcpp::export]]
+List EstimateMoment(const List& skeletonList, const int p, int coordinate = -1) {
+  
+  Skeleton skel = ListToSkeleton(skeletonList);
+  PostProcess pp(skel);
+  if (coordinate > 0)
+    coordinate--; // convert R to C++ number
+  pp.estimateMoment(p, coordinate);
+  return List::create(Named("Moment") = pp.getMoment());
 }
 
 
-// 
-// void Skeleton::GaussianZZ(const MatrixXd& V, const VectorXd& mu, const int n_iter, const double finalTime, const VectorXd& x0, const VectorXd& v0) {
-//   // Gaussian skeleton
-//   // input: V precision matrix (inverse covariance), mu mean, x0 initial condition, n_iter number of switches
-//   // invariant: w = V theta, z = V (x-mu)
-//   
-//   GaussianData data(&V, mu);
-//   GaussianBound bound(data.getGaussianBoundObject(x0, v0));
-//   ZigZag(data, bound, x0, v0, n_iter, finalTime, true); // rejectionFree = true
-// }
-// 
-// VectorXd resampleVelocity(const int dim, const bool unit_velocity = true) {
-//   // helper function for GaussianBPS
-//   VectorXd v = as<Eigen::Map<VectorXd> >(rnorm(dim));
-//   if (unit_velocity)
-//     v.normalize();
-//   return v;
-// }
-// 
-// void Skeleton::GaussianBPS(const MatrixXd& V, const VectorXd& mu, const int n_iter, const double finalTime, const VectorXd& x0, const double refresh_rate, const bool unit_velocity) {
-//   
-//   // Gaussian skeleton using BPS
-//   // input: V precision matrix (inverse covariance), mu mean, x0 initial condition, n_iter number of switches
-//   
-//   if (refresh_rate < 0)
-//     stop("GaussianBPS error: refresh_rate should be non-negative.");
-// 
-//   const int dim = V.rows();
-//   if (x0.size() != dim)
-//     stop("GaussianBPS error: dimension of starting position x0 should agree with dimensions of precision matrix V.");
-//   
-//   bool productForm = false;
-//   ArrayXd diagV;
-//   if (V.cols() != V.rows())
-//   {
-//     productForm = true;
-//     diagV = V.array();
-//   }
-// 
-//   VectorXd x(x0);
-//   VectorXd v = resampleVelocity(dim, unit_velocity);
-// 
-//   RNGScope scp; // initialize random number generator
-//   
-//   double t, t_reflect, t_refresh;
-//   double currentTime = 0;
-//   
-//   VectorXd gradient, w;
-//   if (productForm) {
-//     gradient = diagV * (x - mu).array();
-//     w = diagV * v.array(); // useful invariant
-//   }
-//   else {
-//     gradient = V * (x - mu);
-//     w = V * v; // useful invariant
-//   }
-//   double a = v.dot(gradient);
-//   double b = v.dot(w);
-//   
-//   int iteration = 0;
-//   
-//   Initialize(dim, n_iter);
-//   Push(currentTime, x, v);
-// 
-//   while (iteration < n_iter || currentTime < finalTime) {
-// //    Rprintf("iteration: %d, n_iter: %d, currentTime: %g, finalTime: %g\n", iteration, n_iter, currentTime, finalTime);
-//     ++iteration;
-//     NumericVector U(runif(2));
-//     t_reflect = getRandomTime(a, b, U(0));
-//     if (refresh_rate <= 0) {
-//       t_refresh = -1; // indicating refresh rate = infinity
-//       t = t_reflect;
-//     }
-//     else {
-//       t_refresh = -log(U(1))/refresh_rate;
-//       t = (t_reflect < t_refresh ? t_reflect : t_refresh);
-//     }
-//     currentTime = currentTime + t;
-//     x = x + t * v;
-//     gradient = gradient + t * w;
-// 
-//     if (t_refresh < 0 || t_reflect < t_refresh) {
-//       VectorXd normalized_gradient = gradient.normalized(); // for projection
-//       VectorXd delta_v = - 2 * (v.dot(normalized_gradient)) * normalized_gradient;
-//       v = v + delta_v;
-//     }
-//     else
-//       v = resampleVelocity(dim, unit_velocity);
-// //    Rprintf("%g\n", v.norm());
-//     if (productForm)
-//       w = diagV * v.array();
-//     else
-//       w = V * v; // preserves invariant for w
-//     a = v.dot(gradient);
-//     b = v.dot(w);
-//     Push(currentTime, x, v, finalTime);
-//   }
-//   ShrinkToCurrentSize();
-// }
-// 
+//' EstimateCovarianceMatrix
+//' 
+//' Estimates the covariance matrix of a piecewise deterministic skeleton
+//' 
+//' @param skeletonList a piecewise deterministic skeleton (consisting of Times, Points and Velocities) returned by a sampler
+//' @param coordinate if specified, only estimate the variance of the specified coordinate, otherwise estimate the covariance matrix of all coordinates
+//' @param zeroMeans if TRUE do not estimate means but assume a centered distribution
+//' @return Returns a list containing the estimated moment
+//' @export
+// [[Rcpp::export]]
+List EstimateCovarianceMatrix(const List& skeletonList, int coordinate = -1, bool zeroMeans = false) {
+  
+  Skeleton skel = ListToSkeleton(skeletonList);
+  PostProcess pp(skel);
+  if (coordinate > 0)
+    coordinate--; // convert R to C++ number
+  pp.estimateCovariance(coordinate, zeroMeans);
+  return List::create(Named("Cov") = pp.getCovarianceMatrix());
+}
 
-// 
-// 
-// 
-// //' BPSGaussian
-// //' 
-// //' Applies the BPS Sampler to a Gaussian target distribution, as detailed in Bouchard-Côté et al, 2017.
-// //' Assume potential of the form \deqn{U(x) = (x - mu)^T V (x - mu)/2,} i.e. a Gaussian with mean vector \code{mu} and covariance matrix \code{inv(V)}
-// //'
-// //' @param V the inverse covariance matrix (or precision matrix) of the Gaussian target distribution; if V is a matrix consisting of a single column, it is interpreted as the diagonal of the precision matrix.
-// //' @param mu mean of the Gaussian target distribution
-// //' @param n_iterations Number of algorithm iterations; will result in the equivalent amount of skeleton points in Gaussian case because no rejections are needed.
-// //' @param x0 starting point
-// //' @param finalTime If provided and nonnegative, run the BPS sampler until a trajectory of continuous time length finalTime is obtained (ignoring the value of \code{n_iterations})
-// //' @param refresh_rate \code{lambda_refresh}
-// //' @param unit_velocity TRUE indicates velocities uniform on unit sphere, FALSE indicates standard normal velocities
-// //' @param n_samples Number of discrete time samples to extract from the skeleton.
-// //' @param n_batches If non-zero, estimate effective sample size through the batch means method, with n_batches number of batches.
-// //' @param computeCovariance Boolean indicating whether to estimate the covariance matrix.
-// //' @return Returns a list with the following objects:
-// //' @return \code{skeletonTimes}: Vector of switching times
-// //' @return \code{skeletonPoints}: Matrix whose columns are locations of switches. The number of columns is identical to the length of \code{skeletonTimes}. Be aware that the skeleton points themselves are NOT samples from the target distribution.
-// //' @return \code{skeletonDirections}: Matrix whose columns are directions just after switches. The number of columns is identical to the length of \code{skeletonTimes}.
-// //' @return \code{samples}: If \code{n_samples > 0}, this is a matrix whose \code{n_samples} columns are samples along the Zig-Zag trajectory.
-// //' @return \code{mode}: Not used for a Gaussian target.
-// //' @return \code{batchMeans}: If \code{n_batches > 0}, this is a matrix whose \code{n_batches} columns are the batch means
-// //' @return \code{means}: If \code{n_batches > 0}, this is a vector containing the means of each coordinate along the Zig-Zag trajectory 
-// //' @return \code{covariance}: If \code{n_batches > 0} or \code{computeCovariance = TRUE}, this is a matrix containing the sample covariance matrix along the trajectory
-// //' @return \code{asVarEst}: If \code{n_batches > 0} this is an estimate of the asymptotic variance along each component
-// //' @return \code{ESS}: If \code{n_batches > 0} this is an estimate of the effective sample size along each component
-// //' @examples
-// //' V <- matrix(c(3,1,1,3),nrow=2)
-// //' mu <- c(2,2)
-// //' x0 <- c(0,0)
-// //' result <- BPSGaussian(V, mu, 100, x0, n_samples = 10)
-// //' plot(result$skeletonPoints[1,], result$skeletonPoints[2,],type='l',asp=1)
-// //' points(result$samples[1,], result$samples[2,], col='magenta')
-// //' V <- matrix(rep(1,100),nrow=100)
-// //' mu <- numeric(100)
-// //' x0 <- numeric(100)
-// //' result <- BPSGaussian(V, mu, 1000, x0, n_samples = 10)
-// //' plot(result$skeletonPoints[1,], result$skeletonPoints[2,],type='l',asp=1)
-// //' points(result$samples[1,], result$samples[2,], col='magenta')
-// //' @export
-// // [[Rcpp::export]]
-// List BPSGaussian(const Eigen::MatrixXd V, const Eigen::VectorXd mu, int n_iterations, const Eigen::VectorXd x0, const double finalTime = -1.0, const double refresh_rate = 1, const bool unit_velocity = true, const int n_samples=0, const int n_batches=0, bool computeCovariance=false) {
-// 
-//   Skeleton skeleton;
-//   if (finalTime >= 0)
-//     n_iterations = -1;
-//   skeleton.GaussianBPS(V, mu, n_iterations, finalTime, x0, refresh_rate, unit_velocity);
-//   if (n_samples > 0)
-//     skeleton.sample(n_samples);
-//   if (n_batches > 0)
-//     skeleton.computeBatchMeans(n_batches);
-//   if (computeCovariance)
-//     skeleton.computeCovariance();
-//   return skeleton.toR();
-// }
-// 
+//' DiscreteSamples
+//' 
+//' Extract discrete samples from a skeleton
+//' 
+//' @param skeletonList a piecewise deterministic skeleton (consisting of Times, Points and Velocities) returned by a sampler
+//' @param n_samples number of samples to obtain
+//' @param coordinate if specified, only obtain samples of the specified coordinate, otherwise obtain samples of all coordinates
+//' @return Returns a list containing the extracted samples and the times (on the continuous time scale) at which the samples are extracted
+//' @export
+// [[Rcpp::export]]
+List DiscreteSamples(const List& skeletonList, const int n_samples, int coordinate = -1) {
+  
+  Skeleton skel = ListToSkeleton(skeletonList);
+  PostProcess pp(skel);
+  if (coordinate > 0)
+    coordinate--; // convert R to C++ number
+  pp.sample(n_samples, coordinate);
+  return List::create(Named("Samples") = pp.getSamples(),Named("Times") = pp.getSampleTimes());
+}

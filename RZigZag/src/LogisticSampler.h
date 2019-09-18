@@ -37,33 +37,37 @@ public:
   VectorXd getConstantBound() const { return n_observations * dataX.array().abs().colwise().maxCoeff();};
 
 protected:
-  const SizeType dim, n_observations;
   const MatrixXd& dataX;
   const VectorXi& dataY;
+  const SizeType dim, n_observations;
 };
 
-class LogisticZZ : public AffineRejectionSampler {
+class LogisticZZ : public ZZAffineRejectionSampler {
 public:
-  LogisticZZ(const MatrixXd& dataX, const VectorXi& dataY): AffineRejectionSampler(dataX.cols()), data{LogisticData(dataX, dataY)} { InitializeBound();};
-  LogisticZZ(const MatrixXd& dataX, const VectorXi& dataY, const VectorXd& x0, const VectorXd& v0): AffineRejectionSampler(State(0.0, x0, v0)), data{LogisticData(dataX, dataY)} { InitializeBound();};
-  double getTrueIntensity(const SizeType proposedIndex) const;
-  void updateBound(const SizeType proposedIndex, double trueIntensity);
+  LogisticZZ(const MatrixXd& dataX, const VectorXi& dataY): ZZAffineRejectionSampler(dataX.cols()), data{LogisticData(dataX, dataY)} { };
+  LogisticZZ(const MatrixXd& dataX, const VectorXi& dataY, const VectorXd& x0, const VectorXd& v0): ZZAffineRejectionSampler(State(0.0, x0, v0)), data{LogisticData(dataX, dataY)} { };
+  void Initialize();
+  
+protected:
+  void updateBound();
   
 private:
-  void InitializeBound();
+  double getTrueIntensity();
+  
   const LogisticData data;
 };
 
-class LogisticCVZZ : public AffineRejectionSampler {
+class LogisticCVZZ : public ZZAffineRejectionSampler {
 public:
-  LogisticCVZZ(const MatrixXd& dataX, const VectorXi& dataY): AffineRejectionSampler(dataX.cols()), data{LogisticData(dataX, dataY)} { InitializeBound();};
-  LogisticCVZZ(const MatrixXd& dataX, const VectorXi& dataY, const VectorXd& x0, const VectorXd& v0): AffineRejectionSampler(State(0.0, x0, v0)), data{LogisticData(dataX, dataY)}, x_ref{VectorXd(0)} { InitializeBound();};
-  LogisticCVZZ(const MatrixXd& dataX, const VectorXi& dataY, const VectorXd& x0, const VectorXd& v0, const VectorXd& x_ref): AffineRejectionSampler(State(0.0, x0, v0)), data{LogisticData(dataX, dataY)}, x_ref{x_ref} { InitializeBound();};
-  double getTrueIntensity(const SizeType proposedIndex) const;
-  void updateBound(const SizeType proposedIndex, double trueIntensity);
+  LogisticCVZZ(const MatrixXd& dataX, const VectorXi& dataY): ZZAffineRejectionSampler(dataX.cols()), data{LogisticData(dataX, dataY)} { };
+  LogisticCVZZ(const MatrixXd& dataX, const VectorXi& dataY, const VectorXd& x0, const VectorXd& v0): ZZAffineRejectionSampler(State(0.0, x0, v0)), data{LogisticData(dataX, dataY)}, x_ref{VectorXd(0)} { };
+  LogisticCVZZ(const MatrixXd& dataX, const VectorXi& dataY, const VectorXd& x0, const VectorXd& v0, const VectorXd& x_ref): ZZAffineRejectionSampler(State(0.0, x0, v0)), data{LogisticData(dataX, dataY)}, x_ref{x_ref} { };
+  void Initialize();
   
 private:
-  void InitializeBound();
+  double getTrueIntensity();
+  void updateBound();
+  
   const LogisticData data;
   VectorXd x_ref, grad_ref;
   ArrayXd a_ref, C;

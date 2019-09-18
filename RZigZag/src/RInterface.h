@@ -33,6 +33,7 @@ using Eigen::VectorXd;
 using Eigen::ArrayXd;
 
 VectorXd getUniforms(const long n);
+VectorXd getStandardNormals(const long n);
 
 static std::ostream& messageStream = Rcout;
 

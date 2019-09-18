@@ -39,6 +39,7 @@ using Eigen::ArrayXd;
 // this should be the only adapation if we are not compiling using Rcpp
 #ifndef __RINTERFACE_H
 VectorXd getUniforms(const long n);
+VectorXd getStandardNormals(const long n);
 #include <iostream>
 #include <cmath>
 static std::ostream& messageStream = std::cout;
@@ -57,15 +58,15 @@ struct State {
   VectorXd v; // represents the velocity exactly at time t
 };
 
-class Sampler { // virtual class
+class Sampler { // abstract class
 public:
   // philosophy: Sampler contains the necessary information about the target distribution and keeps track of the current state of the piecewise deterministic sampler
-  // so any initial configuration should be entered into the construction of a sampler
   Sampler(State initialState): dim{initialState.x.size()}, state{initialState} {};
   Sampler(SizeType dim): dim{dim}, state{State(dim)} {};
   virtual bool simulationStep() = 0;
   const State& getState() const { return state;};
   SizeType getDim() const { return dim;};
+  virtual void Initialize() {}; // automatically called in the beginning of the main zigzag routine
   
 protected:
   const SizeType dim; 
@@ -82,24 +83,19 @@ public:
   const MatrixXd& getPositions() const { return Positions; };
   const MatrixXd& getVelocities() const { return Velocities; };
   const VectorXd& getTimes() const { return Times; };
-  MatrixXd sample(const int n_samples) const;
   
-  // diagnostic functions
-  MatrixXd estimateCovariance(const SizeType coordinate = -1) const;
-  VectorXd estimateAsymptoticVariance(const int n_batches = 100, const SizeType coordinate = -1) const;
-  VectorXd estimateESS(const int n_batches = 100, const SizeType coordinate = -1, VectorXd asVarEst = VectorXd(0)) const;
-    
+  friend class PostProcess;
 
 private:
   void Push(const State& state, const double finalTime = -1);
   void ShrinkToCurrentSize(); // shrinks to actual size;
   void Resize(const int factor = 2);
 
+  VectorXd Times;
   MatrixXd Positions;
   MatrixXd Velocities;
-  VectorXd Times;
-  SizeType capacity;
   SizeType size;
+  SizeType capacity;
   SizeType dimension;
   
   friend Skeleton ZigZag(Sampler& sampler, const int n_iter, const double finalTime);
@@ -110,27 +106,38 @@ Skeleton ZigZag(Sampler& sampler, const int n_iter, const double finalTime);
 
 class RejectionSampler : public Sampler {
 public:
-  RejectionSampler(const SizeType dim): Sampler(dim) {};
-  RejectionSampler(State initialState): Sampler(initialState) {};
-//  const int simulateEvent();
+  RejectionSampler(const SizeType dim, const SizeType n_clocks): Sampler(dim), n_clocks{n_clocks}, rejectionFree{false} {};
+  RejectionSampler(State initialState, const SizeType n_clocks): Sampler(initialState), n_clocks{n_clocks}, rejectionFree{false} {};
   bool simulationStep();
-  virtual SizeType proposeEvent() = 0; // moves the state of the sampler to a proposed event and returns the proposed switch
-  virtual double getBound(const SizeType proposedIndex) const = 0;
-  virtual double getTrueIntensity(const SizeType proposedIndex) const = 0;
-  virtual void updateBound(const SizeType proposedIndex, double trueIntensity) = 0;
-
-};
-
-class AffineRejectionSampler : public RejectionSampler {
-public:
-  AffineRejectionSampler(const SizeType dim): RejectionSampler(dim) {};
-  AffineRejectionSampler(State initialState): RejectionSampler(initialState) {};
-  SizeType proposeEvent(); 
-  double getBound(const SizeType index) const { return a(index);};
-  // const State& simulateEvent();
   
 protected:
+  virtual void updateBound() = 0; // 
+  // the values trueIntensity, proposedEvent and acceptProposedEvent concern the most recently proposedEvent
+  double trueIntensity; // this value is stored in the class because it is used for acceptance and possibly updating bound
+  SizeType proposedEvent; 
+  bool acceptProposedEvent;
+  const SizeType n_clocks;
+  bool rejectionFree;
+  
+private:
+  virtual void proposeEvent() = 0; // moves the state of the sampler to a proposed event and returns the proposed switch
+  virtual double getBound() const = 0;
+  virtual double getTrueIntensity() = 0;
+  virtual void simulateJump() = 0;
+};
+
+class ZZAffineRejectionSampler : public RejectionSampler {
+public:
+  ZZAffineRejectionSampler(const SizeType dim): RejectionSampler(dim,dim) {};
+  ZZAffineRejectionSampler(State initialState): RejectionSampler(initialState,initialState.x.size()) {};
+
+protected:
   ArrayXd a, b;
+
+private:
+  void proposeEvent(); 
+  void simulateJump() { state.v(proposedEvent) = - state.v(proposedEvent);};
+  double getBound() const { return a(proposedEvent);};
 };
 
 // various helper functions for zigzag sampling
@@ -151,5 +158,7 @@ public:
 };
 
 VectorXd newton(VectorXd& x, const FunctionObject& fn, double precision = 1e-10, const int max_iter = 1e2);
+
+VectorXd resampleVelocity(const int dim, const bool unit_velocity);
 
 #endif

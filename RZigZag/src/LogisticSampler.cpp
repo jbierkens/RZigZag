@@ -88,20 +88,23 @@ VectorXd LogisticData::getUniformBound() const {
   return 0.25 * bounds * n_observations;
 }
 
-void LogisticZZ::InitializeBound() {
+void LogisticZZ::Initialize() {
   a = state.v.array() * data.gradient(state.x).array();
-  b = sqrt(dim) * data.dominatingHessian().rowwise().norm();
+  b = (long double) sqrt((long double) dim) * data.dominatingHessian().rowwise().norm();
 }
   
-double LogisticZZ::getTrueIntensity(const SizeType index) const {
-  return data.getDerivative(state.x, index) * state.v(index);
+double LogisticZZ::getTrueIntensity() {
+  return data.getDerivative(state.x, proposedEvent) * state.v(proposedEvent);
 }
 
-void LogisticZZ::updateBound(const SizeType proposedIndex, double trueIntensity) {
-  a(proposedIndex) = trueIntensity;
+void LogisticZZ::updateBound() {
+  if (acceptProposedEvent)
+    a(proposedEvent) = -trueIntensity;
+  else
+    a(proposedEvent) = trueIntensity;
 }
 
-void LogisticCVZZ::InitializeBound() {
+void LogisticCVZZ::Initialize() {
   if (x_ref.size() == 0) {
     x_ref = VectorXd::Zero(dim);
     grad_ref = newton(x_ref, data);
@@ -110,16 +113,15 @@ void LogisticCVZZ::InitializeBound() {
     grad_ref = data.gradient(x_ref);
   }
   C = data.getUniformBound();
-  b = sqrt(dim) * C;
-  a_ref = (state.v.cwiseProduct(grad_ref)).unaryExpr(&pospart);
-  a = (state.x-x_ref).norm() * C + a_ref;
+  b = (long double)sqrt((long double)dim) * C;
+  updateBound();
 }
 
-double LogisticCVZZ::getTrueIntensity(const SizeType index) const {
-  return state.v(index)*(grad_ref(index) + data.getSubsampledDerivative(state.x, index, x_ref));
+double LogisticCVZZ::getTrueIntensity() {
+  return state.v(proposedEvent)*(grad_ref(proposedEvent) + data.getSubsampledDerivative(state.x, proposedEvent, x_ref));
 }
 
-void LogisticCVZZ::updateBound(const SizeType proposedIndex, double trueIntensity) {
+void LogisticCVZZ::updateBound() {
   a_ref = (state.v.cwiseProduct(grad_ref)).unaryExpr(&pospart);
   a = (state.x-x_ref).norm() * C + a_ref;
 }
