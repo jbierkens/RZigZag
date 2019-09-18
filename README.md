@@ -15,12 +15,12 @@ install.packages("RcppEigen")
 ```
 
 Then either
-(a) download one of the .tar.gz files in the RZigZag repository and install `RZigZag` from the command line using
+1. download one of the .tar.gz files in the RZigZag repository and install `RZigZag` from the command line using
 ```
 R CMD INSTALL RZigZag_[version].tar.gz
 ```
 or 
-(b) (recommended) install from R using
+2. (recommended) install from R using
 ```r
 install.packages("RZigZag")
 ```
