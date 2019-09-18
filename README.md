@@ -1,9 +1,7 @@
 # RZigZag: Zig-Zag sampling
 
 
-Implements the Zig-Zag algorithm with subsampling and control variates (ZZ-CV) of (Bierkens, Fearnhead, Roberts, 2016) [https://arxiv.org/abs/1607.03188] as applied to Bayesian logistic regression, as well as basic Zig-Zag for a Gaussian target distribution.
-
-The Zig-Zag algorithm is an MCMC algorithm which allows for exact subsampling and can therefore be very efficient in situations with large amounts of data.
+Implements the Zig-Zag algorithm (Bierkens, Fearnhead, Roberts, 2016) [https://arxiv.org/abs/1607.03188] and Bouncy Particle Sampler as applied to Bayesian logistic regression, Gaussian target distributions and Student-t distributions.
 
 ## Installation
 
